@@ -135,6 +135,7 @@ def create_masked_layers(
     act_fn = defaultdict(nn.Identity)
     act_fn = {
         'relu':nn.ReLU(),
+        'tanh':nn.Tanh(),
         'elu':nn.ELU(),
         'selu':nn.SELU(),
         'silu':nn.SiLU(),
@@ -184,6 +185,7 @@ def create_feedforward_layers(
     act_fn = defaultdict(nn.Identity)
     act_fn = {
         'relu':nn.ReLU(),
+        'tanh': nn.Tanh(),
         'elu':nn.ELU(),
         'selu':nn.SELU(),
         'silu':nn.SiLU(),

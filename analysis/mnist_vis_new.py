@@ -35,14 +35,14 @@ def find_latest(pattern: str, root: Path):
             if mtime > newest_mtime:
                 newest_mtime = mtime
                 newest_path = path
-
+    print(newest_path)
     return newest_path
 
 ###############################################################################
 ###############################################################################
 cv_folds = 1
-k = 512
-dataset = 'mnist'
+k = 1024
+dataset = 'mnist_normal'
 device = 'cuda'
 original_size = 220 #this will be 220 was 224 before and 8 patches
 ###############################################################################
@@ -50,11 +50,13 @@ original_size = 220 #this will be 220 was 224 before and 8 patches
 
 SEED = 11
 random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
-
-model = torch.load(
-    find_latest(dataset, Path('./model_checkpoints'))
-    ).eval()
-
+path = str(find_latest(dataset, Path('./model_checkpoints')))
+model = torch.load(path).to(device).eval()
+if 'False' in path.split('preprocess')[-1].split(')')[0][1:]:
+    preprocess = False
+else:
+    preprocess = True
+print(f'preprocess {preprocess}')
 data, features, dtypes, target_scale, predictive_distribution\
         = load_dataset(dataset)
 x, y = data[0]
@@ -66,10 +68,10 @@ folds = np.array(list(range(cv_folds)) * n)[:n]
 np.random.shuffle(folds)
 tr_dataloader, val_dataloader, te_dataloader, stats = prepare_fold(
     x, y, 10, 1, folds,
-    device, torch.float32, dtypes, True
+    device, torch.float32, dtypes, preprocess
     )
 
-x = torch.tensor(transform(data[1][0], stats))[:k]
+x = torch.tensor(transform(data[1][0], stats))[:k].float()
 y = data[1][1][:k]
 images = data[1][2][:k]
 
@@ -99,15 +101,18 @@ for index, l in enumerate(y):
         print(index)
         choice_list.append(index)
 fig, ax = plt.subplots(nrows=1, ncols=5, figsize=(20,20))
-for j, i in enumerate((-predictions).topk(5)[-1]):
+#for j, i in enumerate((-predictions).topk(5)[-1]):
+for j, i in enumerate(np.random.choice(choice_list, 5, replace=False).tolist()):
     new_size = (original_size, original_size)
     loc =  prior_loc - 3 * prior_scale
     resized_prior_loc = cv2.resize(
-        to_np(loc[i]).reshape(8,8,1), new_size, interpolation=cv2.INTER_CUBIC
+        to_np(loc[i]).reshape(
+            int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1
+        ), new_size, interpolation=cv2.INTER_CUBIC
         )
 
     ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
-    im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.6)
+    im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
 
     add_colorbar(im)
     ax[j].set_title(f'Prediction: {round(predictions[i].item(), 3)}')
@@ -122,15 +127,16 @@ for index, l in enumerate(y):
         print(index)
         choice_list.append(index)
 fig, ax = plt.subplots(nrows=1, ncols=5, figsize=(20,20))
-for j, i in enumerate(predictions.topk(5)[-1]):
+#for j, i in enumerate((predictions).topk(5)[-1]):
+for j, i in enumerate(np.random.choice(choice_list, 5, replace=False).tolist()):
     new_size = (original_size, original_size)
     loc =  prior_loc + 3 * prior_scale
     resized_prior_loc = cv2.resize(
-        to_np(loc[i]).reshape(8,8,1), new_size, interpolation=cv2.INTER_CUBIC
+        to_np(loc[i]).reshape(int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1), new_size, interpolation=cv2.INTER_CUBIC
         )
 
     ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
-    im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.6)
+    im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
     # cax = inset_axes(ax[j], width="3%", height="100%", loc="lower left",
     #              bbox_to_anchor=(1.02, 0., 1, 1), bbox_transform=ax[j].transAxes,
     #              borderpad=1)

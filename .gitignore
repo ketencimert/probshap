@@ -1,0 +1,10 @@
+data/*
+model_checkpoints/*
+mnist_analysis/*
+fold_results/*
+fold_figures/*
+epoch_results/*
+__pycache__/*
+transform_mnist_10_segments_cb.pt
+transform_mnist_10_segments_normal.pt
+mnist_analysis.zip

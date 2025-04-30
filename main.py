@@ -61,11 +61,11 @@ if __name__ == '__main__':
                         help='batch size.'
                         )
     parser.add_argument('--d_emb', default=20, type=int)
-    parser.add_argument('--d_hid', default=200, type=int)
+    parser.add_argument('--d_hid', default=300, type=int)
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=5, type=int)
     parser.add_argument('--act', default='elu', type=str)
-    parser.add_argument('--norm', default=None, type=str)
+    parser.add_argument('--norm', default='layer', type=str)
     parser.add_argument('--prior_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
@@ -75,7 +75,7 @@ if __name__ == '__main__':
                         help='if you want to plot shapes use cv_folds=1'
                         )
     parser.add_argument('--dataset', default='mnist', type=str)
-    parser.add_argument('--preprocess', default=True,
+    parser.add_argument('--preprocess', default=False,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
                         )
@@ -91,9 +91,9 @@ if __name__ == '__main__':
 
     SEED = 11
     random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
-    
+
     ratio = (1/args.beta)**(100*args.check_early_stop/args.epochs)
-    
+
     FLAGS = ', '.join(
         [
             str(y) + ' ' + str(x) for (y,x) in vars(args).items() if y not in [
@@ -122,7 +122,7 @@ if __name__ == '__main__':
         d_out = 1
         criterion = min
         metric = rmse
-        
+
     elif predictive_distribution == 'Bernoulli':
         d_out = 1
         criterion = max
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     d_in = x.shape[1]
     n = len(x)
     tr_size = int(n * 0.7)
-    
+
     folds = np.array(list(range(args.cv_folds)) * n)[:n]
     np.random.shuffle(folds)
 
@@ -145,16 +145,16 @@ if __name__ == '__main__':
                 x, y, args.batch_size, fold, folds,
                 args.device, torch.float32, dtypes, args.preprocess
                 )
-
+            print(stats)
             best_model = None
             model = Model(
-                d_in, args.d_hid, d_out, args.d_emb, 
+                d_in, args.d_hid, d_out, args.d_emb,
                 tr_dataloader.dataset.__len__(),
                 args.n_layers, args.act, args.norm, args.p, args.beta,
-                predictive_distribution, 
+                predictive_distribution,
                 phi_net=args.prior_net
                 ).to(args.device)
-            optimizer = optim.Adam(model.parameters(), 
+            optimizer = optim.Adam(model.parameters(),
                 lr=args.lr,  weight_decay=args.wd,
                 )
 

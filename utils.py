@@ -14,8 +14,6 @@ import random
 
 import pickle
 
-import tensorflow as tf
-
 import torch
 from torch.utils.data import DataLoader
 from torch import optim
@@ -174,13 +172,13 @@ def prepare_fold(
         [
         x_tr[
             :,i
-        ].std(0) if dtypes[i]!='uint8' and preprocess else 1 for i in range(
+        ].std(0) + 1 if dtypes[i]!='uint8' and preprocess else 1 for i in range(
                 len(
                     dtypes
                     )
                 )
                 ]
-                ) + 1
+                )
     stats = np.concatenate([loc.reshape(1,-1), scale.reshape(1,-1)], 0)
     x_tr, x_val, x_te = [
         transform(x, stats) for x in [x_tr, x_val, x_te]
@@ -484,6 +482,8 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         elbo, loss, proxy_kld, y_pred, phi_mean = model(x_tr, y_tr, i_tr)
         # print(proxy_kld)
         (-loss).backward()
+        max_norm = 1.0
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         # model.beta.grad.data =- model.beta.grad.data
         optimizer.step()
         tr_loss.append(loss.item())

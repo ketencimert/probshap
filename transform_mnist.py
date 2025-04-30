@@ -15,6 +15,7 @@ import numpy as np
 from modules import create_feedforward_layers
 from utils import to_np
 
+
 # =============================================================================
 # This script is to transform vision data to tabular format. In particular, we
 # divide an image into patches and embed each patch to a scalar value. Later,
@@ -27,12 +28,12 @@ from utils import to_np
 class Decoder(nn.Module):
     def __init__(self,
                  d_in=224,
-                 d_hid=150,
+                 d_hid=300,
                  n_layers=3,
                  activation='elu',
                  norm=None,
                  p=0,
-                 d_patch:int=16
+                 d_patch: int = 16
                  ):
         super().__init__()
 
@@ -40,11 +41,12 @@ class Decoder(nn.Module):
             *create_feedforward_layers(
                 int((d_in // d_patch) ** 2), d_hid, d_in * d_in,
                 n_layers, activation, p, norm
-                )
             )
+        )
 
     def forward(self, x_enc):
         return self.decoder(x_enc)
+
 
 class Encoder(nn.Module):
     def __init__(self,
@@ -56,7 +58,7 @@ class Encoder(nn.Module):
                  activation='elu',
                  norm=None,
                  p=0,
-                 d_patch:int=16
+                 d_patch: int = 16
                  ):
         super().__init__()
 
@@ -65,8 +67,8 @@ class Encoder(nn.Module):
         self.number_of_patches = int(
             np.ceil(
                 d_in ** 2 // d_patch ** 2
-                )
             )
+        )
 
         self.patch_size = d_patch
 
@@ -77,12 +79,12 @@ class Encoder(nn.Module):
                 kernel_size=self.patch_size,
                 stride=self.patch_size,
                 padding=0
-                ),
+            ),
             nn.Flatten(
                 start_dim=2,
                 end_dim=3
-                )
             )
+        )
         self.embedding = nn.Sequential(
             nn.Conv1d(
                 in_channels=self.number_of_patches,
@@ -90,7 +92,7 @@ class Encoder(nn.Module):
                 kernel_size=3,
                 padding=1,
                 groups=self.number_of_patches
-                ),
+            ),
             nn.ELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
             nn.Conv1d(
@@ -99,24 +101,23 @@ class Encoder(nn.Module):
                 kernel_size=3,
                 padding=1,
                 groups=self.number_of_patches
-                ),
+            ),
             nn.ELU(),
             nn.Linear(self.embedding_dim, self.embedding_dim)
-            )
+        )
 
         self.position_embedding = nn.Parameter(
             torch.randn(self.number_of_patches, self.embedding_dim)
-            )
+        )
         self.combine_loc = nn.Sequential(
             *[
                 nn.Linear(self.embedding_dim, self.embedding_dim),
                 nn.ELU(),
                 nn.Linear(self.embedding_dim, 1)
-                ]
-            )
+            ]
+        )
 
     def forward(self, x):
-
         # Perform the forward pass
         x_enc = self.patcher(x).permute(0, 2, 1)
         x_enc = self.embedding(x_enc)
@@ -125,6 +126,7 @@ class Encoder(nn.Module):
         x_enc = self.combine_loc(x_enc)
 
         return x_enc.squeeze(-1)
+
 
 class Model(nn.Module):
     def __init__(self,
@@ -136,7 +138,7 @@ class Model(nn.Module):
                  activation='elu',
                  norm=None,
                  p=0,
-                 d_segment=14 #number of segments
+                 d_segment=14  # number of segments
                  # d_patch:int=16
                  ):
         super().__init__()
@@ -146,10 +148,10 @@ class Model(nn.Module):
         self.decoder = Decoder(d_in=d_in, d_patch=d_patch)
 
     def forward(self, x):
-
         x_enc = self.encoder(x)
         x_dec = self.decoder(x_enc)
         return x_dec
+
 
 def train(args, model, train_loader, optimizer, epoch):
     model.train()
@@ -162,10 +164,10 @@ def train(args, model, train_loader, optimizer, epoch):
         if args.loss == 'cb':
             loss = - torch.distributions.ContinuousBernoulli(
                 logits=x_dec
-                ).log_prob(data.reshape(data.size(0), -1)).sum(-1).mean(0)
+            ).log_prob(data.reshape(data.size(0), -1)).sum(-1).mean(0)
         elif args.loss == 'normal':
             loss = (x_dec - data.view(data.size(0), -1)).pow(2).sum(-1).mean()
-            #maybe you should not put uniform standard deviation
+            # maybe you should not put uniform standard deviation
         loss.backward()
 
         optimizer.step()
@@ -173,8 +175,9 @@ def train(args, model, train_loader, optimizer, epoch):
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), np.mean(loss_list)))
+                       100. * batch_idx / len(train_loader), np.mean(loss_list)))
     return model
+
 
 def test(args, model, best_model, test_loader, best_score):
     model.eval()
@@ -187,20 +190,20 @@ def test(args, model, best_model, test_loader, best_score):
             if args.loss == 'cb':
                 loss = - torch.distributions.ContinuousBernoulli(
                     logits=x_dec
-                    ).log_prob(data.reshape(data.size(0), -1)).sum(-1).mean(0)
+                ).log_prob(data.reshape(data.size(0), -1)).sum(-1).mean(0)
             elif args.loss == 'normal':
                 loss = (
-                    x_dec - data.view(data.size(0), -1)
-                    ).pow(2).sum(-1).mean()
+                        x_dec - data.view(data.size(0), -1)
+                ).pow(2).sum(-1).mean()
             if args.plot:
                 if args.loss == 'cb':
                     plt.imshow(
-                        nn.Sigmoid()(x_dec)[10].reshape(d_in,d_in).detach().cpu()
-                        )
+                        nn.Sigmoid()(x_dec)[10].reshape(d_in, d_in).detach().cpu()
+                    )
                 else:
                     plt.imshow(
-                        x_dec[10].reshape(d_in,d_in).detach().cpu()
-                        )
+                        x_dec[10].reshape(d_in, d_in).detach().cpu()
+                    )
                 plt.show()
 
             loss_list.append(loss.item())
@@ -208,12 +211,14 @@ def test(args, model, best_model, test_loader, best_score):
     print(
         '\nTest set: Loss: {:.4f} \n'.format(
             np.mean(loss_list)
-            )
         )
-
-    if best_score >= np.mean(loss_list):
+    )
+    current_score = np.mean(loss_list)
+    print(f'The best score is {best_score} and current score is {current_score}.')
+    if current_score <= best_score:
+        print('Caching best model.')
         best_model = deepcopy(model)
-        best_score =  np.mean(loss_list)
+        best_score = current_score
 
     return best_model, best_score
 
@@ -235,7 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', default='normal', type=str,
                         help='loss for decoder.'
                         )
-    parser.add_argument('--epochs', default=int(1e5), type=int,
+    parser.add_argument('--epochs', default=int(200), type=int,
                         help='number of training epochs.'
                         )
     parser.add_argument('--batch_size', default=1024, type=int,
@@ -246,131 +251,131 @@ if __name__ == '__main__':
     # parser.add_argument('--plot', default=True)
     parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
-
+    # args.plot = True
     kwargs = {
         'num_workers': 1, 'pin_memory': False
-        } if 'cuda' in args.device else {}
+    } if 'cuda' in args.device else {}
 
     # Let's fix these to make sure that they are thesame accross different
     # datasets.
-    d_in = 220 #make it stay as 24 - before 224
-    d_segment = 10 # make this 8 - 8 pieces, each describe 3 by 3 pixels before 14
-    #Augment the data to better generalize
+    d_in = 220  # make it stay as 24 - before 224
+    d_segment = 10  # make this 8 - 8 pieces, each describe 3 by 3 pixels before 14
+    # Augment the data to better generalize
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=True, download=True,
-                        transform=transforms.Compose([
-                            # transforms.CenterCrop(26),
-                            transforms.Resize((d_in,d_in)),
-                            transforms.ColorJitter(
-                                brightness=0.05,
-                                contrast=0.05,
-                                saturation=0.05,
-                                hue=0.05
-                                ),
-                            transforms.RandomRotation(10),
-                            transforms.RandomAffine(5),
-                            transforms.RandomGrayscale(p=0.2),
-                            transforms.RandomAffine(
-                                    degrees=20,
-                                    translate=(0.1,0.1),
-                                    scale=(0.9, 1.1)
-                                    ),
-                            transforms.RandomInvert(),
-                            transforms.RandomAutocontrast(),
-                            transforms.RandomEqualize(),
-                            transforms.AugMix(),
-                            transforms.ToTensor(),
-                            ])),
+                       transform=transforms.Compose([
+                           # transforms.CenterCrop(26),
+                           transforms.Resize((d_in, d_in)),
+                           transforms.ColorJitter(
+                               brightness=0.05,
+                               contrast=0.05,
+                               saturation=0.05,
+                               hue=0.05
+                           ),
+                           transforms.RandomRotation(10),
+                           transforms.RandomAffine(5),
+                           transforms.RandomGrayscale(p=0.2),
+                           transforms.RandomAffine(
+                               degrees=20,
+                               translate=(0.1, 0.1),
+                               scale=(0.9, 1.1)
+                           ),
+                           transforms.RandomInvert(),
+                           transforms.RandomAutocontrast(),
+                           transforms.RandomEqualize(),
+                           transforms.AugMix(),
+                           transforms.ToTensor(),
+                       ])),
         batch_size=args.batch_size, shuffle=True, **kwargs
-        )
-# =============================================================================
-#     train_loader = torch.utils.data.DataLoader(
-#         datasets.MNIST('../data', train=True, download=True,
-#                                 transform=transforms.Compose([
-#                                     transforms.Resize((224,224)),
-#                                     transforms.ToTensor(),
-#                             ])),
-#         batch_size=args.batch_size, shuffle=True, **kwargs
-#         )
-# =============================================================================
+    )
+    # =============================================================================
+    #     train_loader = torch.utils.data.DataLoader(
+    #         datasets.MNIST('../data', train=True, download=True,
+    #                                 transform=transforms.Compose([
+    #                                     transforms.Resize((224,224)),
+    #                                     transforms.ToTensor(),
+    #                             ])),
+    #         batch_size=args.batch_size, shuffle=True, **kwargs
+    #         )
+    # =============================================================================
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=False,
                        transform=transforms.Compose([
-                           transforms.Resize((d_in,d_in)),
+                           transforms.Resize((d_in, d_in)),
                            transforms.ToTensor(),
-                           ])),
-        batch_size=args.batch_size, shuffle=True, **kwargs
-        )
+                       ])),
+        batch_size=args.batch_size, shuffle=False, **kwargs
+    )
     if os.path.exists(
             f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
-            ):
+    ):
         print('File found. Loading and generating results...')
         with torch.no_grad():
             kwargs['pin_memory'] = False
             best_model = torch.load(
-            f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
-                )
+                f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
+            )
             train_loader = torch.utils.data.DataLoader(
                 datasets.MNIST('../data', train=True, download=True,
                                transform=transforms.Compose([
-                                   transforms.Resize((224,224)),
+                                   transforms.Resize((d_in, d_in)),
                                    transforms.ToTensor(),
-                                   ])),
-                batch_size=args.batch_size, shuffle=True, **kwargs
-                )
+                               ])),
+                batch_size=args.batch_size, shuffle=False, **kwargs
+            )
 
             split = ['train', 'test']
             for i, loader in enumerate([train_loader, test_loader]):
 
-                inputs = []
+                images = []
                 labels = []
                 encoded_dataset = []
 
                 try:
                     for batch_idx, (input_data, label) in tqdm(
-                            enumerate(loader), 
+                            enumerate(loader),
                             total=len(loader)
-                            ):
-                        inputs.append(to_np(input_data))
+                    ):
+                        images.append(to_np(input_data))
                         labels.append(to_np(label))
                         encoded_dataset.append(
                             to_np(best_model.encoder(input_data.to(args.device)))
-                            )
+                        )
 
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_input',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_images',
                         np.squeeze(
-                            np.concatenate(inputs), 1)
-                        )
+                            np.concatenate(images), 1)
+                    )
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_labels',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_labels',
                         np.concatenate(labels)
-                        )
+                    )
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_encoded',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_inputs',
                         np.concatenate(encoded_dataset)
-                        )
+                    )
 
                 except:
 
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_input',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_images',
                         np.squeeze(
-                            np.concatenate(inputs), 1)
-                        )
+                            np.concatenate(images), 1)
+                    )
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_labels',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_labels',
                         np.concatenate(labels)
-                        )
+                    )
                     np.save(
-        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_encoded',
+                        f'./{split[i]}_{args.dataset}_{d_segment}_segments_{args.loss}_inputs',
                         np.concatenate(encoded_dataset)
-                        )
+                    )
     else:
         print('Training model.')
         print(
             'Once training complete run this script again to generate data.'
-            )
+        )
         try:
             model = Model(d_in=d_in, d_segment=d_segment).to(args.device)
             best_model = None
@@ -381,9 +386,9 @@ if __name__ == '__main__':
                 model = train(args, model, train_loader, optimizer, epoch)
                 best_model, best_score = test(
                     args, model, best_model, test_loader, best_score
-                    )
+                )
             print('Training complete. Saving the model...')
-            
+
         except KeyboardInterrupt:
             print('Keyboard interrupt. Saving the best model...')
             if best_model is None:
@@ -391,5 +396,5 @@ if __name__ == '__main__':
 
         torch.save(
             best_model,
-        f"./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt"
-            )
+            f"./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt"
+        )
