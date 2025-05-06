@@ -11,3 +11,4 @@ transform_mnist_10_segments_normal.pt
 mnist_analysis.zip
 all_data.zip
 model_meanfield_viepsilon.py
+figures/*
