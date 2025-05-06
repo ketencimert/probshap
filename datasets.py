@@ -446,12 +446,14 @@ def load_dataset(
 
         y = (y == ' >50K').astype(np.float32)
 
-    elif dataset.lower() == 'mnist_normal':
+    elif 'mnist_normal' in dataset.lower():
 
+        detect = int(dataset.split('_')[-1])
+        print(detect)
         y_scale = 1
         predictive_distribution = 'Bernoulli'
 
-        detect = 8
+        # detect = 8
 
         train_images = np.load('./data/mnist/train_mnist_10_segments_normal_images.npy')
         train_inputs = np.load('./data/mnist/train_mnist_10_segments_normal_inputs.npy')
@@ -478,12 +480,14 @@ def load_dataset(
         dtypes = np.asarray([X.dtype for i in range(X.shape[-1])])
         features = ['x{}'.format(i) for i in range(X.shape[-1])]
 
-    elif dataset.lower() == 'mnist_cb':
+    elif 'mnist_cb' in dataset.lower():
 
+        detect = int(dataset.split('_')[-1])
+        print(detect)
         y_scale = 1
         predictive_distribution = 'Bernoulli'
 
-        detect = 2
+        # detect = 2
 
         train_images = np.load('./data/mnist/train_mnist_10_segments_cb_images.npy')
         train_inputs = np.load('./data/mnist/train_mnist_10_segments_cb_inputs.npy')

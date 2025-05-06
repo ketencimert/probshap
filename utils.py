@@ -483,7 +483,7 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         # print(proxy_kld)
         (-loss).backward()
         max_norm = 1.0
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         # model.beta.grad.data =- model.beta.grad.data
         optimizer.step()
         tr_loss.append(loss.item())

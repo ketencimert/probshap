@@ -59,7 +59,8 @@ class Masked_q_phi_x(nn.Module):
         #         Masked net as described in the paper.
         # =============================================================================
         self.placeholder = nn.Parameter(
-            torch.zeros(d_in, d_emb), requires_grad=True)
+            torch.randn(d_in, d_emb), requires_grad=True
+            )
 
         self.cont_emb_loc = nn.Sequential(
             *create_masked_layers(
@@ -128,7 +129,7 @@ class Masked_q_phi_x(nn.Module):
         #         Hence, 0 location.
         #         Therefore multiply by m if you want
         # =============================================================================
-        return loc.squeeze(-1).squeeze(-1), \
+        return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-15
 
 
@@ -167,7 +168,7 @@ class Vanilla_q_phi_x(nn.Module):
             torch.cat([loc.detach(), x, m], -1))
         )
 
-        return loc.squeeze(-1), \
+        return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-15
 
 
@@ -349,22 +350,16 @@ class Model(nn.Module):
         kld = torch.distributions.kl.kl_divergence(q_phi_x, p_phi_x).mean(0)
         elbo = loglikelihood - self.beta * kld
 
-        delta_red = p_phi_x_loc2 - q_phi_x_loc
-        delta_blue = p_phi_x_loc1 - q_phi_x_loc
+        # delta_red = p_phi_x_loc2 - q_phi_x_loc
+        # delta_blue = p_phi_x_loc1 - q_phi_x_loc
 
-        proxy_kld = delta_blue * delta_red.detach() / (
-                    1e-15 + p_phi_x_scale.pow(2)
-            )
+        proxy_kld = kld 
 
         # we need to filter the unbiased calculations that add to variance
         # negative values for this estimator causes high variance in loss and
         # gradient explosion. another way was to just use delta_blue for example
-        entropy = q_phi_x.log_prob(q_phi_x.sample())
-        a = sample_covariance(
-            entropy, proxy_kld
-        ) / sample_covariance(entropy, entropy)
-        positives =  1. - 1. * (proxy_kld < 0)
-        proxy_kld = (proxy_kld * positives).sum() / positives.sum()
+        # positives =  1. - 1. * (proxy_kld < 0)
+        # proxy_kld = (proxy_kld * positives).sum() / positives.sum()
         loss = loglikelihood - self.beta * proxy_kld #- a * entropy.mean()
 
         return elbo, loss, proxy_kld, py_x_loc, q_phi_x_loc.mean()
@@ -438,6 +433,7 @@ class Model(nn.Module):
         )
         shapley_loc1 = shapley_loc1.mean(-1)
         shapley_loc2 = shapley_loc2.mean(-1)
+
 
         return shapley_loc1, shapley_loc2, feature_idx_init
 
