@@ -11,6 +11,7 @@ import random
 from collections import defaultdict
 import os
 
+
 import numpy as np
 import torch
 from torch import optim
@@ -66,7 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default=None, type=str)
-    parser.add_argument('--prior_net', default='vanilla', type=str)
+    parser.add_argument('--prior_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=1, type=float)
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='mnist_normal_1', type=str)
+    parser.add_argument('--dataset', default='synthetic1', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
@@ -185,8 +186,7 @@ if __name__ == '__main__':
                 best_model = get_best_model(
                     best_model, model, epoch_results, metric
                     )
-                # if epoch == 208:
-                #     break
+
                 if epoch % args.check_early_stop == 0 and epoch != 0:
                     STOP = check_early_stop(
                         STOP, epoch, args.check_early_stop,

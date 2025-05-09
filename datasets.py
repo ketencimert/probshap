@@ -453,8 +453,6 @@ def load_dataset(
         y_scale = 1
         predictive_distribution = 'Bernoulli'
 
-        # detect = 8
-
         train_images = np.load('./data/mnist/train_mnist_10_segments_normal_images.npy')
         train_inputs = np.load('./data/mnist/train_mnist_10_segments_normal_inputs.npy')
         train_labels = np.load('./data/mnist/train_mnist_10_segments_normal_labels.npy')
@@ -486,8 +484,6 @@ def load_dataset(
         print(detect)
         y_scale = 1
         predictive_distribution = 'Bernoulli'
-
-        # detect = 2
 
         train_images = np.load('./data/mnist/train_mnist_10_segments_cb_images.npy')
         train_inputs = np.load('./data/mnist/train_mnist_10_segments_cb_inputs.npy')
