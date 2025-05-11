@@ -44,7 +44,7 @@ class P_f_(nn.Module):
     def forward(self, q_phi_x_loc, q_phi_x_scale):
         loc = q_phi_x_loc.sum(-1) + self.bias
         scale = torch.pow(
-            nn.Softplus()(self.scale).pow(2) + q_phi_x_scale.pow(2).sum(-1),
+            q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
             0.5
         )
         return loc.squeeze(-1), scale.squeeze(-1)
@@ -59,7 +59,7 @@ class Masked_q_phi_x(nn.Module):
         #         Masked net as described in the paper.
         # =============================================================================
         self.placeholder = nn.Parameter(
-            torch.zeros(d_in, d_emb), requires_grad=True
+            torch.randn(d_in, d_emb), requires_grad=True
             )
 
         self.cont_emb_loc = nn.Sequential(
@@ -88,10 +88,11 @@ class Masked_q_phi_x(nn.Module):
         self.scale1 = nn.Parameter(
             torch.randn(1, d_in), requires_grad=True
         )
+
         self.scale2 = nn.Parameter(
             torch.randn(1, d_in), requires_grad=True
         )
-        
+
         self.loc_net = nn.Sequential(
             *create_feedforward_layers(
                 d_emb, d_hid, d_out, n_layers, activation, p, norm
@@ -136,12 +137,18 @@ class Masked_q_phi_x(nn.Module):
         #         Hence, 0 location.
         #         Therefore multiply by m if you want
         # =============================================================================
-        scale = torch.pow(
-        scale.pow(2).squeeze(-1) * m + nn.Softplus()(self.scale1).pow(2) * (
-                1 - m * 1.
-                ) + nn.Softplus()(self.scale2).pow(2),
-            0.5
-            )
+        # scale = torch.pow(
+        #     scale.pow(2).squeeze(-1) + nn.Softplus()(self.scale).pow(2),
+        #     0.5
+        #     )
+        # if self.training:
+            # scale = torch.pow(
+            # scale.squeeze(-1) * m + nn.Softplus()(self.scale1) * (
+            #         1 - m * 1.
+            #         ) + nn.Softplus()(self.scale2),
+            #     1
+            #     )
+
         return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-15
 
@@ -193,7 +200,7 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        self.beta = beta
+        self.beta = nn.Parameter(torch.randn(d_in), requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -346,6 +353,8 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
+        beta = nn.Softplus()(self.beta).gather(0, feature_idx.long())
+        beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
@@ -360,18 +369,18 @@ class Model(nn.Module):
             p_phi_x_scale
         )
 
-        kld = torch.distributions.kl.kl_divergence(q_phi_x, p_phi_x).mean(0)
-        elbo = loglikelihood - self.beta * kld
+        kld = torch.distributions.kl.kl_divergence(q_phi_x, p_phi_x)
+        elbo = loglikelihood - torch.mean(beta * kld)
 
         delta_red = p_phi_x_loc2 - q_phi_x_loc
         delta_blue = p_phi_x_loc1 - q_phi_x_loc
-        proxy_kld = torch.mean(
-            delta_blue * delta_red.detach() / (
-                1e-15 + p_phi_x_scale.pow(2)
+        proxy_kld = torch.abs(delta_blue * delta_red.detach() / (
+                1e-15 + 2 * p_phi_x_scale.pow(2)
                 )
             )
-        
-        loss = loglikelihood - self.beta * proxy_kld
+
+        loss = loglikelihood - torch.mean(beta * proxy_kld)
+        elbo = loss
         return elbo, loss, proxy_kld, py_x_loc, q_phi_x_loc.mean()
 
     def p_phi_x_parameters(

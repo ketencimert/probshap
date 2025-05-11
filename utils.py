@@ -481,8 +481,9 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         optimizer.zero_grad()
         elbo, loss, proxy_kld, y_pred, phi_mean = model(x_tr, y_tr, i_tr)
         (-loss).backward()
+        # model.beta.grad.data =- model.beta.grad.data
         optimizer.step()
-
+        
         tr_loss.append(loss.item())
         y_pred_list.append(y_pred)
         y_list.append(y_tr)

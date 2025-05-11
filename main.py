@@ -70,12 +70,12 @@ if __name__ == '__main__':
     parser.add_argument('--prior_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
-    parser.add_argument('--beta', default=1, type=float)
+    parser.add_argument('--beta', default=2, type=float)
     #data, fold, tune, metric args
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='synthetic1', type=str)
+    parser.add_argument('--dataset', default='icu', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
@@ -119,7 +119,6 @@ if __name__ == '__main__':
     d_in = x.shape[-1]
 
     if predictive_distribution == 'Normal':
-
         d_out = 1
         criterion = min
         metric = rmse
