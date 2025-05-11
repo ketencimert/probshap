@@ -200,7 +200,7 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        self.beta = nn.Parameter(torch.randn(d_in), requires_grad=True)
+        self.beta = nn.Parameter(torch.zeros(d_in), requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -354,7 +354,7 @@ class Model(nn.Module):
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
         beta = nn.Softplus()(self.beta).gather(0, feature_idx.long())
-        beta = torch.ones_like(beta)
+        # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
