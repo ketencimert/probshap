@@ -150,7 +150,7 @@ class Masked_q_phi_x(nn.Module):
             #     )
 
         return loc.squeeze(-1) * m, \
-               scale.squeeze(-1) + 1e-15
+               scale.squeeze(-1) + 1e-6
 
 
 class Vanilla_q_phi_x(nn.Module):
@@ -189,7 +189,7 @@ class Vanilla_q_phi_x(nn.Module):
         )
 
         return loc.squeeze(-1) * m, \
-               scale.squeeze(-1) + 1e-15
+               scale.squeeze(-1) + 1e-6
 
 
 class Model(nn.Module):
@@ -374,10 +374,10 @@ class Model(nn.Module):
 
         delta_red = p_phi_x_loc2 - q_phi_x_loc
         delta_blue = p_phi_x_loc1 - q_phi_x_loc
-        proxy_kld = torch.abs(delta_blue * delta_red.detach() / (
-                1e-15 + 2 * p_phi_x_scale.pow(2)
+        proxy_kld = torch.abs(delta_blue * delta_red.detach()) / (
+                1e-6 + 2 * p_phi_x_scale.pow(2)
                 )
-            )
+            
 
         loss = loglikelihood - torch.mean(beta * proxy_kld)
         elbo = loss

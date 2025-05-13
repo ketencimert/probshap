@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', default='cuda', type=str)
-    parser.add_argument('--dataset', default='synthetic1', type=str)
+    parser.add_argument('--dataset', default='icu', type=str)
     parser.add_argument('--fold', default='X', type=str)
     parser.add_argument('--preprocess', default=True, type=bool)
 
