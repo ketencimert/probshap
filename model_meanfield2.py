@@ -178,6 +178,42 @@ class Vanilla_q_phi_x(nn.Module):
         return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-6
 
+class Q_f(nn.Module):
+    def __init__(
+            self, d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
+    ):
+        super(Q_f, self).__init__()
+        # =============================================================================
+        #         Standard masked neural network.
+        # =============================================================================
+
+        self.scale_net = nn.Sequential(
+            nn.Sequential(
+                *create_feedforward_layers(
+                    d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
+                )
+            )
+        )
+
+        self.loc_net = nn.Sequential(
+            *create_feedforward_layers(
+                d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
+            )
+        )
+        
+        self.embeddings = nn.Embedding(d_data, d_emb)
+        
+    def forward(self, i, m):
+        e = self.embeddings(i.long())
+        z = torch.cat([e, m*1.], -1)
+        loc = self.loc_net(z)
+        scale = nn.Softplus()(self.scale_net(
+            z
+        )
+            )
+
+        return loc.squeeze(-1), \
+               scale.squeeze(-1) + 1e-6
 
 class Model(nn.Module):
     def __init__(
@@ -194,12 +230,12 @@ class Model(nn.Module):
             n_layers, activation, norm, p,
             likelihood
         )
-        self.q_f_loc = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
+        self.q_f_net = Q_f(
+            d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
         )
         # initiate it from very small variance
         self.q_f_scale = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
+            torch.randn(d_data, d_in), requires_grad=True
         )
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
@@ -321,9 +357,12 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
+            # q_f_loc, q_f_scale = self.q_f_net(i, m)
+            # q_f_scale = torch.sum(self.q_f_scale[i] * m, -1)
             q_f = Normal(
-                self.q_f_loc[i],
-                nn.Softplus()(self.q_f_scale[i])
+                qp_f_x_loc,
+                qp_f_x_scale
+                # nn.Softplus()(q_f_scale)
             )
             logits = q_f.rsample()
             loglikelihood = Bernoulli(
@@ -336,9 +375,9 @@ class Model(nn.Module):
             #     logits
             #     ).mean(0)
             # loglikelihood += q_f.entropy().mean(0)
-            loglikelihood -= torch.distributions.kl_divergence(
-                q_f, qp_f_x
-            ).mean(0)
+            # loglikelihood -= torch.distributions.kl_divergence(
+            #     q_f, qp_f_x
+            # ).mean(0)
 
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence

@@ -18,7 +18,7 @@ from torch import optim
 
 from tqdm import tqdm
 # from model import Model
-from model_meanfield import Model
+from model_meanfield2 import Model
 from datasets import load_dataset
 from utils import (
     train_one_epoch,
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
-    parser.add_argument('--norm', default=None, type=str)
+    parser.add_argument('--norm', default='layer', type=str)
     parser.add_argument('--prior_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
@@ -84,6 +84,9 @@ if __name__ == '__main__':
                         help='check early stop every 150 epochs.'
                         )
     parser.add_argument('--early_stop', default=200, type=int,
+                        help='stop if no improvement for 20 checks.'
+                        )
+    parser.add_argument('--var', default=100, type=int,
                         help='stop if no improvement for 20 checks.'
                         )
     args = parser.parse_args()
@@ -152,7 +155,8 @@ if __name__ == '__main__':
                 tr_dataloader.dataset.__len__(),
                 args.n_layers, args.act, args.norm, args.p, args.beta,
                 predictive_distribution,
-                phi_net=args.prior_net
+                phi_net=args.prior_net,
+                variance=args.var
                 ).to(args.device)
             optimizer = optim.Adam(model.parameters(),
                 lr=args.lr,  weight_decay=args.wd,
