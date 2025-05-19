@@ -183,7 +183,7 @@ class Model(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb,
             d_data, n_layers, activation, norm, p, beta,
-            likelihood, phi_net, variance
+            likelihood, phi_net
     ):
         super(Model, self).__init__()
 

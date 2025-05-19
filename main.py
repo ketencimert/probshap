@@ -17,8 +17,7 @@ import torch
 from torch import optim
 
 from tqdm import tqdm
-# from model import Model
-from model_meanfield2 import Model
+
 from datasets import load_dataset
 from utils import (
     train_one_epoch,
@@ -61,13 +60,16 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size.'
                         )
+    parser.add_argument('--model_id', default=0, type=int,
+                        help='model_id.'
+                        )
     parser.add_argument('--d_emb', default=50, type=int)
     parser.add_argument('--d_hid', default=300, type=int)
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default='layer', type=str)
-    parser.add_argument('--prior_net', default='masked', type=str)
+    parser.add_argument('--phi_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=2, type=float)
@@ -86,12 +88,17 @@ if __name__ == '__main__':
     parser.add_argument('--early_stop', default=200, type=int,
                         help='stop if no improvement for 20 checks.'
                         )
-    parser.add_argument('--var', default=100, type=int,
-                        help='stop if no improvement for 20 checks.'
-                        )
     args = parser.parse_args()
 
-    MODEL_NAME = 'ProbabilisticShapley'
+    if args.model_id == 0:
+        from model_meanfield import Model
+    elif args.model_id == 1:
+        from model_meanfield1 import Model
+    elif args.model_id == 2:
+        from model_meanfield2 import Model
+
+    MODEL_NAME = 'ProbabilisticShapley{str(args.model_id)}'
+
 
     SEED = 11
     random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
@@ -148,17 +155,17 @@ if __name__ == '__main__':
                 x, y, args.batch_size, fold, folds,
                 args.device, torch.float32, dtypes, args.preprocess
                 )
-            print(stats)
+
             best_model = None
             model = Model(
                 d_in, args.d_hid, d_out, args.d_emb,
                 tr_dataloader.dataset.__len__(),
                 args.n_layers, args.act, args.norm, args.p, args.beta,
                 predictive_distribution,
-                phi_net=args.prior_net,
-                variance=args.var
+                phi_net=args.phi_net,
                 ).to(args.device)
-            optimizer = optim.Adam(model.parameters(),
+            optimizer = optim.Adam(
+                model.parameters(),
                 lr=args.lr,  weight_decay=args.wd,
                 )
 

@@ -45,7 +45,8 @@ class P_f_(nn.Module):
         loc = q_phi_x_loc.sum(-1) + self.bias
         if self.likelihood == 'Normal':
             scale = torch.pow(
-                q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
+                q_phi_x_scale.pow(2).sum(-1) \
+                    + nn.Softplus()(self.scale).pow(2),
                 0.5
             )
         elif self.likelihood == 'Bernoulli':
@@ -219,7 +220,7 @@ class Model(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb,
             d_data, n_layers, activation, norm, p, beta,
-            likelihood, phi_net, variance
+            likelihood, phi_net
     ):
         super(Model, self).__init__()
 
