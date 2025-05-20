@@ -5,7 +5,7 @@ Created on Mon Apr 14 01:06:26 2025
 @author: Mert
 """
 import argparse
-
+import os
 import cv2
 # import torch.nn as nn
 from utils import transform
@@ -23,6 +23,21 @@ from datasets import load_dataset
 from utils import prepare_fold, to_np
 
 import matplotlib.pyplot as plt
+import shutil
+
+def zip_folder(folder_path, output_path):
+    """
+    Zips a folder and its contents.
+
+    Args:
+        folder_path (str): The path to the folder to be zipped.
+        output_path (str): The path and name of the output zip file (without extension).
+    """
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"Folder not found: {folder_path}")
+
+    shutil.make_archive(output_path, 'zip', folder_path)
+    print(f"Folder '{folder_path}' zipped to '{output_path}.zip'")
 
 def find_latest(pattern: str, root: Path):
     """Return the newest file under *root* whose name contains *pattern*."""
@@ -46,16 +61,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     #device args
     parser.add_argument(
-        '--device', default='cuda', type=str,
-        help='device to train the model.'
-        )
+        '--device', default='cuda', type=str, help='device to train the model.'
+    )
     parser.add_argument(
         '--model_id', default=0, type=int, help='model_id.'
-        )
+    )
     parser.add_argument(
-        '--dataset', default='icu', type=str
-        )
-    parser.add_argument('--phi_net', default='masked', type=str)
+        '--dataset', default='mnist_normal_8', type=str
+    )
+    parser.add_argument(
+        '--phi_net', default='masked', type=str
+    )
+    parser.add_argument(
+        '--std', default=1, type=float
+    )
 
     args = parser.parse_args()
 
@@ -66,14 +85,15 @@ if __name__ == '__main__':
     dataset = args.dataset
     device = args.device
     phi_net = args.phi_net
-    model_name =  'ProbabilisticShapley{str(args.model_id)}'
+    model_name =  f'ProbabilisticShapley{str(args.model_id)}'
     original_size = 220 #this will be 220 was 224 before and 8 patches
     ###############################################################################
     ###############################################################################
-    
+    os.makedirs('./mnist_analysis', exist_ok=True)
     SEED = 11
     random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
     path = str(find_latest(dataset, Path('./model_checkpoints')))
+
     model = torch.load(path).to(device).eval()
     if 'False' in path.split('preprocess')[-1].split(')')[0][1:]:
         preprocess = False
@@ -86,7 +106,7 @@ if __name__ == '__main__':
     d_in = x.shape[-1]
     n = len(x)
     tr_size = int(n * 0.7)
-    
+    path = path.split('model_checkpoints/')[-1].replace('.pth','')
     folds = np.array(list(range(cv_folds)) * n)[:n]
     np.random.shuffle(folds)
     tr_dataloader, val_dataloader, te_dataloader, stats = prepare_fold(
@@ -123,25 +143,29 @@ if __name__ == '__main__':
         if l != 1:
             print(index)
             choice_list.append(index)
-    fig, ax = plt.subplots(nrows=1, ncols=5, figsize=(20,20))
-    #for j, i in enumerate((-predictions).topk(5)[-1]):
-    for j, i in enumerate(np.random.choice(choice_list, 5, replace=False).tolist()):
-        new_size = (original_size, original_size)
-        loc =  prior_loc - 3 * prior_scale
-        resized_prior_loc = cv2.resize(
-            to_np(loc[i]).reshape(
-                int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1
-            ), new_size, interpolation=cv2.INTER_CUBIC
-            )
-    
-        ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
-        im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
-    
-        add_colorbar(im)
-        ax[j].set_title(f'Prediction: {round(predictions[i].item(), 3)}')
-    
+    sd = [0, 1, 2, 3]
+    choice = np.random.choice(choice_list, 5, replace=False).tolist()
+    fig, axes = plt.subplots(nrows=len(sd), ncols=5, figsize=(20,20))
+    # for j, i in enumerate((-predictions).topk(5)[-1]):
+    for k in range(len(sd)):
+        ax = axes[k]
+        for j, i in enumerate(choice):
+            new_size = (original_size, original_size)
+            loc =  prior_loc - 3 * prior_scale
+            resized_prior_loc = cv2.resize(
+                to_np(loc[i]).reshape(
+                    int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1
+                ), new_size, interpolation=cv2.INTER_CUBIC
+                )
+
+            ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
+            im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
+
+            add_colorbar(im)
+            ax[j].set_title(f'Prediction: {round(predictions[i].item(), 3)}')
+
     plt.tight_layout()
-    plt.savefig('negative_mnist_{path}.pdf')
+    plt.savefig(f'./mnist_analysis/negative_mnist_{path}.pdf')
     # plt.show()
     
     choice_list = []
@@ -149,28 +173,34 @@ if __name__ == '__main__':
         if l == 1:
             print(index)
             choice_list.append(index)
-    fig, ax = plt.subplots(nrows=1, ncols=5, figsize=(20,20))
+    sd = [0, 1, 2, 3]
+    choice = np.random.choice(choice_list, 5, replace=False).tolist()
+    fig, axes = plt.subplots(nrows=len(sd), ncols=5, figsize=(20,20))
     #for j, i in enumerate((predictions).topk(5)[-1]):
-    for j, i in enumerate(np.random.choice(choice_list, 5, replace=False).tolist()):
-        new_size = (original_size, original_size)
-        loc =  prior_loc + 3 * prior_scale
-        resized_prior_loc = cv2.resize(
-            to_np(loc[i]).reshape(int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1), new_size, interpolation=cv2.INTER_CUBIC
-            )
-    
-        ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
-        im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
-        # cax = inset_axes(ax[j], width="3%", height="100%", loc="lower left",
-        #              bbox_to_anchor=(1.02, 0., 1, 1), bbox_transform=ax[j].transAxes,
-        #              borderpad=1)
-        add_colorbar(im)
-        ax[j].set_title(f'Prediction: {round(predictions[i].item(), 3)}')
+    for k in range(len(sd)):
+        ax = axes[k]
+        for j, i in enumerate(choice):
+            new_size = (original_size, original_size)
+            loc =  prior_loc + sd[k] * prior_scale
+            resized_prior_loc = cv2.resize(
+                to_np(loc[i]).reshape(int(loc[i].shape[-1]**0.5),int(loc[i].shape[-1]**0.5),1), new_size, interpolation=cv2.INTER_CUBIC
+                )
+
+            ax[j].imshow(images[i])  # 0.0 (transparent) to 1.0 (opaque)
+            im = ax[j].imshow(resized_prior_loc, cmap='jet', alpha=0.7)
+            # cax = inset_axes(ax[j], width="3%", height="100%", loc="lower left",
+            #              bbox_to_anchor=(1.02, 0., 1, 1), bbox_transform=ax[j].transAxes,
+            #              borderpad=1)
+            add_colorbar(im)
+            ax[j].set_title(f'Prediction: {round(predictions[i].item(), 3)}')
     
         # divider = make_axes_locatable(ax[j])
         # cax = divider.append_axes('right', size='5%', pad=0.05)
         # plt.colorbar(im, ax=ax[j])
     plt.tight_layout()
-    plt.savefig('positive_mnist_{path}.pdf')
+    plt.savefig(f'./mnist_analysis/positive_mnist_{path}.pdf')
+
+    zip_folder('mnist_analysis', 'mnist_analysis')
 
 # from transform import * 
 # # i = 3

@@ -97,7 +97,7 @@ if __name__ == '__main__':
     elif args.model_id == 2:
         from model_meanfield2 import Model
 
-    MODEL_NAME = 'ProbabilisticShapley{str(args.model_id)}'
+    MODEL_NAME = f'ProbabilisticShapley{str(args.model_id)}'
 
 
     SEED = 11
@@ -117,6 +117,7 @@ if __name__ == '__main__':
                 'num_tries',
                 'epochs',
                 'batch_size'
+                'model_id'
                 ]
             ]
         )
