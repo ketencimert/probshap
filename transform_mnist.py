@@ -8,13 +8,13 @@ from tqdm import tqdm
 
 import torch.optim as optim
 from torchvision import datasets, transforms
+from torch.utils.data import random_split
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from modules import create_feedforward_layers
 from utils import to_np
-
 
 # =============================================================================
 # This script is to transform vision data to tabular format. In particular, we
@@ -247,9 +247,9 @@ if __name__ == '__main__':
                         help='batch size.'
                         )
     # for now, fixed -- it is only mnist
-    parser.add_argument('--dataset', default='mnist', type=str)
+    parser.add_argument('--dataset', default='lung', type=str)
     # parser.add_argument('--plot', default=True)
-    parser.add_argument('--plot', action='store_true')
+    parser.add_argument('--plot', default='store_true')
     args = parser.parse_args()
     # args.plot = True
     kwargs = {
@@ -261,51 +261,77 @@ if __name__ == '__main__':
     d_in = 220  # make it stay as 24 - before 224
     d_segment = 10  # make this 8 - 8 pieces, each describe 3 by 3 pixels before 14
     # Augment the data to better generalize
+    train_transform = transforms.Compose([
+        # transforms.CenterCrop(26),
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((d_in, d_in)),
+        transforms.ColorJitter(
+            brightness=0.05,
+            contrast=0.05,
+            saturation=0.05,
+            hue=0.05
+        ),
+        transforms.RandomRotation(10),
+        transforms.RandomAffine(5),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.RandomAffine(
+            degrees=20,
+            translate=(0.1, 0.1),
+            scale=(0.9, 1.1)
+        ),
+        transforms.RandomInvert(),
+        transforms.RandomAutocontrast(),
+        transforms.RandomEqualize(),
+        transforms.AugMix(),
+        transforms.ToTensor(),
+        ])
+    test_transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((d_in, d_in)),
+        transforms.ToTensor()
+        ])
+    if args.dataset == 'mnist':
+            train_dataset = datasets.MNIST(
+                '../data',
+                train=True,
+                download=True,
+                transform=train_transform
+                )
+            test_dataset = datasets.MNIST(
+                '../data',
+                train=False,
+                transform=test_transform
+                )
+
+    elif args.dataset == 'lung':
+        full_dataset = datasets.ImageFolder(
+            root="./data/lung/",
+            transform=train_transform
+            )
+        train_len = int(0.8 * len(full_dataset))
+        test_len = len(full_dataset) - train_len
+        generator = torch.Generator().manual_seed(42)
+        train_dataset, test_dataset = random_split(
+            full_dataset,
+            [train_len, test_len],
+            generator=generator
+            )
+        train_dataset.transform = train_transform
+        test_dataset.transform = test_transform
+
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('../data', train=True, download=True,
-                       transform=transforms.Compose([
-                           # transforms.CenterCrop(26),
-                           transforms.Resize((d_in, d_in)),
-                           transforms.ColorJitter(
-                               brightness=0.05,
-                               contrast=0.05,
-                               saturation=0.05,
-                               hue=0.05
-                           ),
-                           transforms.RandomRotation(10),
-                           transforms.RandomAffine(5),
-                           transforms.RandomGrayscale(p=0.2),
-                           transforms.RandomAffine(
-                               degrees=20,
-                               translate=(0.1, 0.1),
-                               scale=(0.9, 1.1)
-                           ),
-                           transforms.RandomInvert(),
-                           transforms.RandomAutocontrast(),
-                           transforms.RandomEqualize(),
-                           transforms.AugMix(),
-                           transforms.ToTensor(),
-                       ])),
-        batch_size=args.batch_size, shuffle=True, **kwargs
-    )
-    # =============================================================================
-    #     train_loader = torch.utils.data.DataLoader(
-    #         datasets.MNIST('../data', train=True, download=True,
-    #                                 transform=transforms.Compose([
-    #                                     transforms.Resize((224,224)),
-    #                                     transforms.ToTensor(),
-    #                             ])),
-    #         batch_size=args.batch_size, shuffle=True, **kwargs
-    #         )
-    # =============================================================================
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        **kwargs
+        )
+
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('../data', train=False,
-                       transform=transforms.Compose([
-                           transforms.Resize((d_in, d_in)),
-                           transforms.ToTensor(),
-                       ])),
-        batch_size=args.batch_size, shuffle=False, **kwargs
-    )
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        **kwargs
+        )
     if os.path.exists(
             f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
     ):
@@ -315,15 +341,7 @@ if __name__ == '__main__':
             best_model = torch.load(
                 f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
             )
-            train_loader = torch.utils.data.DataLoader(
-                datasets.MNIST('../data', train=True, download=True,
-                               transform=transforms.Compose([
-                                   transforms.Resize((d_in, d_in)),
-                                   transforms.ToTensor(),
-                               ])),
-                batch_size=args.batch_size, shuffle=False, **kwargs
-            )
-
+            train_dataset.transform = test_transform
             split = ['train', 'test']
             for i, loader in enumerate([train_loader, test_loader]):
 
