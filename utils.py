@@ -483,8 +483,9 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         (-loss).backward()
         model.beta.grad.data =- model.beta.grad.data
         # print(model.beta.grad.data)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
-        
+
         tr_loss.append(loss.item())
         y_pred_list.append(y_pred)
         y_list.append(y_tr)
