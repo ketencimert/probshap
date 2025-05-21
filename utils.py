@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, x, y, device, dtype=torch.double):
-
+        x = x.astype(np.float32)
         self.ds = [
             [
                 torch.tensor(x, dtype=dtype),
