@@ -316,9 +316,10 @@ if __name__ == '__main__':
             [train_len, test_len],
             generator=generator
             )
-        train_dataset.transform = train_transform
-        test_dataset.transform = test_transform
+        test_dataset = deepcopy(test_dataset)
 
+    train_dataset.dataset.transform = train_transform
+    train_dataset.dataset.transforms = train_transform
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
@@ -326,22 +327,32 @@ if __name__ == '__main__':
         **kwargs
         )
 
+    test_dataset.dataset.transform = test_transform
+    test_dataset.dataset.transforms = test_transform
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
         **kwargs
         )
+
     if os.path.exists(
             f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
-    ):
+            ):
         print('File found. Loading and generating results...')
         with torch.no_grad():
             kwargs['pin_memory'] = False
             best_model = torch.load(
                 f'./transform_{args.dataset}_{d_segment}_segments_{args.loss}.pt'
             )
-            train_dataset.transform = test_transform
+            train_dataset.dataset.transform = test_transform
+            train_dataset.dataset.transforms = test_transform
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset,
+                batch_size=args.batch_size,
+                shuffle=True,
+                **kwargs
+                )
             split = ['train', 'test']
             for i, loader in enumerate([train_loader, test_loader]):
 
