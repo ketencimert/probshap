@@ -246,11 +246,11 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size.'
                         )
-    parser.add_argument('--d_in', default=400, type=int,
-                        help='resize images'
+    parser.add_argument('--d_in', default=300, type=int,
+                        help='resize images (220)'
                         )
-    parser.add_argument('--d_segment', default=20, type=int,
-                        help='new size will be d_segment ** 2'
+    parser.add_argument('--d_segment', default=15, type=int,
+                        help='new size will be d_segment ** 2 (10)'
                         )
     # for now, fixed -- it is only mnist
     parser.add_argument('--dataset', default='lung', type=str)
