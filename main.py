@@ -68,7 +68,7 @@ if __name__ == '__main__':
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
-    parser.add_argument('--norm', default='layer', type=str)
+    parser.add_argument('--norm', default=None, type=str)
     parser.add_argument('--phi_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
