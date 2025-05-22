@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--phi_net', default='masked', type=str)
 
     parser.add_argument('--p', default=0, type=float)
-    parser.add_argument('--beta', default=2, type=float)
+    parser.add_argument('--beta', default=1, type=float)
     #data, fold, tune, metric args
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'

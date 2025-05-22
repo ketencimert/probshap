@@ -61,17 +61,17 @@ if __name__ == '__main__':
     SEED = 11
     random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
 
-    # model = load_model(
-    #     model_name=args.model_name, 
-    #     prior=args.prior, 
-    #     act=args.act,
-    #     beta=args.beta, 
-    #     inc_beta=args.inc_beta, 
-    #     fold=args.fold, 
-    #     dataset=args.dataset, 
-    #     preprocess=args.preprocess,
-    #     device=args.device
-    #     )
+    model = load_model(
+        model_name=args.model_name, 
+        prior=args.prior, 
+        act=args.act,
+        beta=args.beta, 
+        inc_beta=args.inc_beta, 
+        fold=args.fold, 
+        dataset=args.dataset, 
+        preprocess=args.preprocess,
+        device=args.device
+        )
 
     tensor_dtype = torch.float
 
