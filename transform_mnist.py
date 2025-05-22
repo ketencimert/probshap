@@ -246,6 +246,12 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size.'
                         )
+    parser.add_argument('--d_in', default=400, type=int,
+                        help='resize images'
+                        )
+    parser.add_argument('--d_segment', default=20, type=int,
+                        help='new size will be d_segment ** 2'
+                        )
     # for now, fixed -- it is only mnist
     parser.add_argument('--dataset', default='lung', type=str)
     # parser.add_argument('--plot', default=True)
@@ -258,8 +264,8 @@ if __name__ == '__main__':
 
     # Let's fix these to make sure that they are thesame accross different
     # datasets.
-    d_in = 220  # make it stay as 24 - before 224
-    d_segment = 10  # make this 8 - 8 pieces, each describe 3 by 3 pixels before 14
+    d_in = args.d_in  # make it stay as 24 - before 224
+    d_segment = args.d_segment # make this 8 - 8 pieces, each describe 3 by 3 pixels before 14
     # Augment the data to better generalize
     train_transform = transforms.Compose([
         # transforms.CenterCrop(26),

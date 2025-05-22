@@ -67,7 +67,7 @@ if __name__ == '__main__':
         '--model_id', default=0, type=int, help='model_id.'
     )
     parser.add_argument(
-        '--dataset', default='mnist_normal_8', type=str
+        '--dataset', default='lung_normal', type=str
     )
     parser.add_argument(
         '--phi_net', default='masked', type=str
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     d_in = x.shape[-1]
     n = len(x)
     tr_size = int(n * 0.7)
-    path = path.split('model_checkpoints/')[-1].replace('.pth','')
+    path = path.split('model_checkpoints\\')[-1].replace('.pth','')
     folds = np.array(list(range(cv_folds)) * n)[:n]
     np.random.shuffle(folds)
     tr_dataloader, val_dataloader, te_dataloader, stats = prepare_fold(

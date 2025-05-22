@@ -77,7 +77,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='icu', type=str)
+    parser.add_argument('--dataset', default='lung_normal', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'

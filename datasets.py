@@ -511,6 +511,39 @@ def load_dataset(
         features = ['x{}'.format(i) for i in range(X.shape[-1])]
 
 
+    elif 'lung_normal' in dataset.lower():
+
+        detect = 1
+        # print(detect)
+        y_scale = 1
+        predictive_distribution = 'Bernoulli'
+
+        train_images = np.load('./data/lung/train_lung_10_segments_normal_images.npy')
+        train_inputs = np.load('./data/lung/train_lung_10_segments_normal_inputs.npy')
+        train_labels = np.load('./data/lung/train_lung_10_segments_normal_labels.npy')
+
+        train_labels = 1. * (train_labels == detect)
+
+        test_images = np.load('./data/lung/test_lung_10_segments_normal_images.npy')
+        test_inputs = np.load('./data/lung/test_lung_10_segments_normal_inputs.npy')
+        test_labels = np.load('./data/lung/test_lung_10_segments_normal_labels.npy')
+
+        test_labels = 1. * (test_labels == detect)
+
+        X = np.concatenate([train_inputs, test_inputs])
+        y = np.concatenate([train_labels, test_labels])
+        fs = np.concatenate([train_images, test_images])
+
+        choice = np.random.choice(X.shape[0], X.shape[0]//5, replace=False)
+
+        X = X[choice, :]
+        y = y[choice]
+        fs = fs[choice, :]
+
+        dtypes = np.asarray([X.dtype for i in range(X.shape[-1])])
+        features = ['x{}'.format(i) for i in range(X.shape[-1])]
+
+
     else:
         y_scale = 1
         predictive_distribution = 'Normal'
