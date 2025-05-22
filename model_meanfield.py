@@ -325,12 +325,22 @@ class Model(nn.Module):
                     nn.Softplus()(self.p_f_.scale)
                     ).cdf(torch.zeros_like(logits))
                 ).log_prob(y).mean(0)
+            _, _, qp_f_x_loc_, \
+            qp_f_x_scale_, _ \
+                = self.compute_parameters(x, torch.ones_like(x))
             # loglikelihood += qp_f_x.log_prob(
             #     logits
             #     ).mean(0)
             # loglikelihood += q_f.entropy().mean(0)
             loglikelihood -= torch.distributions.kl_divergence(
-                q_f, qp_f_x
+                q_f, Normal(qp_f_x_loc_, qp_f_x_scale_)
+            ).mean(0)
+            q_f = Normal(
+                self.q_f_loc[i].detach(),
+                nn.Softplus()(self.q_f_scale[i]).detach()
+            )
+            loglikelihood -= torch.distributions.kl_divergence(
+                q_f, Normal(qp_f_x_loc, qp_f_x_scale)
             ).mean(0)
 
         # =============================================================================
