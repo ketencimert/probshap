@@ -130,7 +130,7 @@ class Masked_q_phi_x(nn.Module):
         #         Therefore multiply by m if you want
         # =============================================================================
 
-        return loc.squeeze(-1) * m, \
+        return loc.squeeze(-1), \
                scale.squeeze(-1) + 1e-5
 
 
@@ -169,7 +169,7 @@ class Vanilla_q_phi_x(nn.Module):
             torch.cat([loc.detach(), x, m], -1))
         )
 
-        return loc.squeeze(-1) * m, \
+        return loc.squeeze(-1), \
                scale.squeeze(-1) + 1e-5
 
 class Model(nn.Module):
