@@ -180,7 +180,7 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        self.beta = beta
+        self.beta = nn.Parameter(torch.ones(d_in) * -2., requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -350,7 +350,7 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
-        beta = self.beta
+        beta = nn.Sigmoid()(self.beta).gather(0, feature_idx.long())
         # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)

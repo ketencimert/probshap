@@ -518,15 +518,15 @@ def load_dataset(
         y_scale = 1
         predictive_distribution = 'Bernoulli'
 
-        train_images = np.load('./data/lung/train_lung_10_segments_normal_images.npy')
-        train_inputs = np.load('./data/lung/train_lung_10_segments_normal_inputs.npy')
-        train_labels = np.load('./data/lung/train_lung_10_segments_normal_labels.npy')
+        train_images = np.load('./data/lung/train_lung_15_segments_normal_images.npy')
+        train_inputs = np.load('./data/lung/train_lung_15_segments_normal_inputs.npy')
+        train_labels = np.load('./data/lung/train_lung_15_segments_normal_labels.npy')
 
         train_labels = 1. * (train_labels == detect)
 
-        test_images = np.load('./data/lung/test_lung_10_segments_normal_images.npy')
-        test_inputs = np.load('./data/lung/test_lung_10_segments_normal_inputs.npy')
-        test_labels = np.load('./data/lung/test_lung_10_segments_normal_labels.npy')
+        test_images = np.load('./data/lung/test_lung_15_segments_normal_images.npy')
+        test_inputs = np.load('./data/lung/test_lung_15_segments_normal_inputs.npy')
+        test_labels = np.load('./data/lung/test_lung_15_segments_normal_labels.npy')
 
         test_labels = 1. * (test_labels == detect)
 

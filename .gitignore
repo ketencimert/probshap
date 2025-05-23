@@ -13,3 +13,7 @@ all_data.zip
 model_meanfield_viepsilon.py
 figures/*
 data.zip
+*.pth
+*.npy
+*.npz
+*.pkl

@@ -86,7 +86,7 @@ if __name__ == '__main__':
     device = args.device
     phi_net = args.phi_net
     model_name =  f'ProbabilisticShapley{str(args.model_id)}'
-    original_size = 220 #this will be 220 was 224 before and 8 patches
+    # original_size = 220 #this will be 220 was 224 before and 8 patches
     ###############################################################################
     ###############################################################################
     os.makedirs('./mnist_analysis', exist_ok=True)
@@ -106,6 +106,7 @@ if __name__ == '__main__':
     d_in = x.shape[-1]
     n = len(x)
     tr_size = int(n * 0.7)
+    path = path.split('model_checkpoints/')[-1].replace('.pth','')
     path = path.split('model_checkpoints\\')[-1].replace('.pth','')
     folds = np.array(list(range(cv_folds)) * n)[:n]
     np.random.shuffle(folds)
@@ -113,7 +114,7 @@ if __name__ == '__main__':
         x, y, 10, 1, folds,
         device, torch.float32, dtypes, preprocess
         )
-    
+    original_size = data[1][2].shape[-1]
     x = torch.tensor(transform(data[1][0], stats))[:k].float()
     y = data[1][1][:k]
     images = data[1][2][:k]

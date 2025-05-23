@@ -296,7 +296,7 @@ if __name__ == '__main__':
         transforms.Resize((d_in, d_in)),
         transforms.ToTensor()
         ])
-    train_transform = test_transform
+    # train_transform = test_transform
     if args.dataset == 'mnist':
             train_dataset = datasets.MNIST(
                 '../data',
