@@ -171,42 +171,6 @@ class Vanilla_q_phi_x(nn.Module):
         return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-5
 
-class Q_f(nn.Module):
-    def __init__(
-            self, d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
-    ):
-        super(Q_f, self).__init__()
-        # =============================================================================
-        #         Standard masked neural network.
-        # =============================================================================
-
-        self.scale_net = nn.Sequential(
-            nn.Sequential(
-                *create_feedforward_layers(
-                    d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-                )
-            )
-        )
-
-        self.loc_net = nn.Sequential(
-            *create_feedforward_layers(
-                d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-            )
-        )
-        
-        self.embeddings = nn.Embedding(d_data, d_emb)
-        
-    def forward(self, i, m):
-        e = self.embeddings(i.long())
-        z = torch.cat([e, m*1.], -1)
-        loc = self.loc_net(z)
-        scale = nn.Softplus()(self.scale_net(
-            z
-        )
-            )
-
-        return loc.squeeze(-1), \
-               scale.squeeze(-1) + 1e-5
 
 class Model(nn.Module):
     def __init__(
@@ -216,19 +180,19 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        self.beta = beta
+        self.beta = nn.Parameter(torch.ones(d_in) * -2., requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
             likelihood
         )
-        self.q_f_net = Q_f(
-            d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
+        self.q_f_loc = nn.Parameter(
+            torch.randn(d_data), requires_grad=True
         )
         # initiate it from very small variance
         self.q_f_scale = nn.Parameter(
-            torch.randn(d_data, d_in), requires_grad=True
+            torch.randn(d_data), requires_grad=True
         )
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
@@ -350,26 +314,42 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
-            q_f_loc, q_f_scale = self.q_f_net(i, m)
-            # q_f_scale = torch.sum(self.q_f_scale[i] * m, -1)
             q_f = Normal(
-                q_f_loc,
-                q_f_scale
-                # nn.Softplus()(q_f_scale)
-            )
+                self.q_f_loc[i].detach(),
+                nn.Softplus()(self.q_f_scale[i]).detach()
+                )
             logits = q_f.rsample()
+            
+            #for e-stap
             loglikelihood = Bernoulli(
                 probs=1 - Normal(
                     logits, 
                     nn.Softplus()(self.p_f_.scale)
                     ).cdf(torch.zeros_like(logits))
                 ).log_prob(y).mean(0)
-            # loglikelihood += qp_f_x.log_prob(
-            #     logits
-            #     ).mean(0)
-            # loglikelihood += q_f.entropy().mean(0)
+            #for m-step
+            loglikelihood += Bernoulli(
+                probs=1 - Normal(
+                    logits.detach(), 
+                    nn.Softplus()(self.p_f_.scale)
+                    ).cdf(torch.zeros_like(logits))
+                ).log_prob(y).mean(0)
+
+            #for e-step
+            _, _, qp_f_x_loc_, \
+            qp_f_x_scale_, _ \
+                = self.compute_parameters(x, torch.ones_like(x))
             loglikelihood -= torch.distributions.kl_divergence(
-                q_f, qp_f_x
+                q_f, Normal(qp_f_x_loc_, qp_f_x_scale_)
+            ).mean(0)
+
+            #for m-step
+            q_f = Normal(
+                self.q_f_loc[i].detach(),
+                nn.Softplus()(self.q_f_scale[i]).detach()
+            )
+            loglikelihood -= torch.distributions.kl_divergence(
+                q_f, Normal(qp_f_x_loc, qp_f_x_scale)
             ).mean(0)
 
         # =============================================================================
@@ -379,7 +359,7 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
-        beta = self.beta
+        beta = nn.Sigmoid()(self.beta).gather(0, feature_idx.long())
         # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)

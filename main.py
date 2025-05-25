@@ -7,6 +7,7 @@ Created on Mon Sep 19 17:58:12 2022
 import scipy
 
 import argparse
+from copy import deepcopy
 import random
 from collections import defaultdict
 import os
@@ -77,7 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='lung_normal', type=str)
+    parser.add_argument('--dataset', default='icu', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--check_early_stop', default=150, type=int,
                         help='check early stop every 150 epochs.'
                         )
-    parser.add_argument('--early_stop', default=200, type=int,
+    parser.add_argument('--early_stop', default=20, type=int,
                         help='stop if no improvement for 20 checks.'
                         )
     args = parser.parse_args()
@@ -174,9 +175,8 @@ if __name__ == '__main__':
 
             if args.cv_folds == 1:
                 fold = 'X'
-
+            k = 0
             for epoch in tqdm(range(args.epochs), position=0, leave=True):
-
                 tr_elbo, tr_score, mse_phi0 = train_one_epoch(
                     model,
                     optimizer,
@@ -205,8 +205,18 @@ if __name__ == '__main__':
                         )
 
                 elif STOP == args.early_stop:
-                    print('Early stopping...')
-                    break
+                    if model.e_step:
+                        model = deepcopy(best_model)
+                        model.e_step = False
+                        optimizer = optim.Adam(
+                            model.parameters(),
+                            lr=args.lr,  weight_decay=args.wd,
+                            )
+                        model.fix_meanfield(tr_dataloader)
+                        STOP = 0
+                    else:
+                        print('Early stopping...')
+                        break
 
             save_epoch_stats(
                 model,
