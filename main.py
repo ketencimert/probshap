@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default=None, type=str)
-    parser.add_argument('--phi_net', default='masked', type=str)
+    parser.add_argument('--phi_net', default='vanilla', type=str)
 
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=1, type=float)
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='icu', type=str)
+    parser.add_argument('--dataset', default='mnist_normal_8', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
@@ -175,7 +175,7 @@ if __name__ == '__main__':
 
             if args.cv_folds == 1:
                 fold = 'X'
-            k = 0
+            # k = 0
             for epoch in tqdm(range(args.epochs), position=0, leave=True):
                 tr_elbo, tr_score, mse_phi0 = train_one_epoch(
                     model,
@@ -205,18 +205,18 @@ if __name__ == '__main__':
                         )
 
                 elif STOP == args.early_stop:
-                    if model.e_step:
-                        model = deepcopy(best_model)
-                        model.e_step = False
-                        optimizer = optim.Adam(
-                            model.parameters(),
-                            lr=args.lr,  weight_decay=args.wd,
-                            )
-                        model.fix_meanfield(tr_dataloader)
-                        STOP = 0
-                    else:
-                        print('Early stopping...')
-                        break
+                    # if model.e_step:
+                    #     model = deepcopy(best_model)
+                    #     model.e_step = False
+                    #     optimizer = optim.Adam(
+                    #         model.parameters(),
+                    #         lr=args.lr,  weight_decay=args.wd,
+                    #         )
+                    #     model.fix_meanfield(tr_dataloader)
+                    #     STOP = 0
+                    # else:
+                    print('Early stopping...')
+                    break
 
             save_epoch_stats(
                 model,

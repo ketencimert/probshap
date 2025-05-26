@@ -6,7 +6,6 @@ Created on Mon Sep 19 17:58:12 2022
 """
 from collections import defaultdict
 import numpy as np
-from copy import deepcopy 
 
 import pandas as pd
 
@@ -19,6 +18,13 @@ from tqdm import tqdm
 
 from utils import inverse_transform, to_np
 from modules import create_masked_layers, create_feedforward_layers
+
+
+def sample_covariance(x, y):
+    x_mean = torch.mean(x)
+    y_mean = torch.mean(y)
+    cov = torch.sum((x - x_mean) * (y - y_mean)) / (x.numel() - 1)
+    return cov.detach()
 
 
 class P_f_(nn.Module):
@@ -181,13 +187,7 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        # self.beta = nn.Parameter(torch.ones(d_in) * -2., requires_grad=True)
-        self.beta = beta
-        if likelihood == 'Bernoulli':
-            self.e_step = True
-        else:
-            self.e_step = False
-        
+        self.beta = nn.Parameter(torch.zeros(d_in), requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -257,17 +257,6 @@ class Model(nn.Module):
 
         return q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
                qp_f_x_scale, py_x_loc
-    
-    def fix_meanfield(self, dataloader):
-        with torch.no_grad():
-            for (x, y, i) in dataloader:
-                _, _, qp_f_x_loc_, \
-                    qp_f_x_scale_, _ \
-                        = self.compute_parameters(x, torch.ones_like(x))
-                self.q_f_loc[i].copy_(qp_f_x_loc_)
-                self.q_f_scale[i].copy_(qp_f_x_scale_)
-            self.q_f_loc.requires_grad_(False)
-            self.q_f_scale.requires_grad_(False)
 
     def missingness_indicator(self, x):
         # =============================================================================
@@ -335,41 +324,26 @@ class Model(nn.Module):
             q_f = Normal(
                 self.q_f_loc[i],
                 nn.Softplus()(self.q_f_scale[i])
-                )
+            )
             logits = q_f.rsample()
-            if self.e_step:
-                #for e-step
-                loglikelihood = Bernoulli(
-                    probs=1 - Normal(
-                        logits, 
-                        nn.Softplus()(self.p_f_.scale)
-                        ).cdf(torch.zeros_like(logits))
-                    ).log_prob(y).mean(0)
-                #for e-step
-                _, _, qp_f_x_loc_, \
-                qp_f_x_scale_, _ \
-                    = self.compute_parameters(x, torch.ones_like(x))
-                loglikelihood -= torch.distributions.kl_divergence(
-                    q_f, Normal(qp_f_x_loc_, qp_f_x_scale_)
-                ).mean(0)
-            else:
-                loglikelihood = 0
-            #for m-step
+            loglikelihood = Bernoulli(
+                probs=1 - Normal(
+                    logits, 
+                    nn.Softplus()(self.p_f_.scale)
+                    ).cdf(torch.zeros_like(logits))
+                ).log_prob(y).mean(0)
+
+            loglikelihood -= torch.distributions.kl_divergence(
+                q_f, qp_f_x
+            ).mean(0)
+
             loglikelihood += Bernoulli(
                 probs=1 - Normal(
                     logits.detach(), 
                     nn.Softplus()(self.p_f_.scale)
                     ).cdf(torch.zeros_like(logits))
                 ).log_prob(y).mean(0)
-            #for m-step
-            q_f = Normal(
-                self.q_f_loc[i].detach(),
-                nn.Softplus()(self.q_f_scale[i]).detach()
-            )
-            loglikelihood -= torch.distributions.kl_divergence(
-                q_f, Normal(qp_f_x_loc, qp_f_x_scale)
-            ).mean(0)
-
+            loglikelihood += qp_f_x.log_prob(logits.detach()).mean(0)
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
         #         term.
@@ -377,8 +351,8 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
-        # beta = nn.Sigmoid()(self.beta).gather(0, feature_idx.long())
-        beta = self.beta
+        beta = nn.Softplus()(self.beta).gather(0, feature_idx.long())
+        # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
@@ -507,7 +481,7 @@ class Model(nn.Module):
                         ].append(importance_stats)
                     else:
                         importance_stats = importance_stats[
-                            abs(importance_stats[:, 0] - 1) < 1e-4, :
+                                           abs(importance_stats[:, 0] - 1) < 1e-4, :
                                            ]
                         feature = features[i].split('_')
                         f = np.asarray(
