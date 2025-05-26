@@ -343,14 +343,36 @@ class Model(nn.Module):
         # =============================================================================
         # 1. Generate missing values vector m \sim p(s), where m is 0
         # model won't see corresponding x values.
+        original_shape = x.shape[0]
         m = self.missingness_indicator(x)
+        x = torch.cat([x, x], 0)
+        m = torch.cat([m, torch.ones_like(m)], 0)
         # 2. Compute distributions sufficient statistics.
         q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
         qp_f_x_scale, py_x_loc \
             = self.compute_parameters(x, m)
+            
+        q_phi_x_loc, q_phi_x_loc_ = q_phi_x_loc.split(
+            original_shape, 0
+            )
+        q_phi_x_scale, q_phi_x_scale_ = q_phi_x_scale.split(
+            original_shape, 0
+            )
+        qp_f_x_loc, qp_f_x_loc_ = qp_f_x_loc.split(
+            original_shape, 0
+            )
+        qp_f_x_scale, qp_f_x_scale_ = qp_f_x_scale.split(
+            original_shape, 0
+            )
+        py_x_loc, py_x_loc_ = py_x_loc.split(
+            original_shape, 0
+            )
         # 3. Compute an approximation to p(\phi | x):
         p_phi_x_loc1, p_phi_x_loc2, feature_idx \
-            = self.p_phi_x_parameters(x, m)
+            = self.p_phi_x_parameters(
+                x[:original_shape], 
+                m[:original_shape]
+                )
 
         qp_f_x = Normal(qp_f_x_loc, qp_f_x_scale)
 
@@ -361,8 +383,8 @@ class Model(nn.Module):
             # q_f_loc, q_f_scale = self.q_f_net(i, m)
             # q_f_scale = torch.sum(self.q_f_scale[i] * m, -1)
             q_f = Normal(
-                qp_f_x_loc,
-                qp_f_x_scale
+                qp_f_x_loc_,
+                qp_f_x_scale_
                 # nn.Softplus()(q_f_scale)
             )
             logits = q_f.rsample()
@@ -372,13 +394,13 @@ class Model(nn.Module):
                     nn.Softplus()(self.p_f_.scale)
                     ).cdf(torch.zeros_like(logits))
                 ).log_prob(y).mean(0)
-            loglikelihood += qp_f_x.log_prob(
-                logits.detach()
-                ).mean(0)
+            # loglikelihood += qp_f_x.log_prob(
+            #     logits.detach()
+            #     ).mean(0)
             # loglikelihood += q_f.entropy().mean(0)
-            # loglikelihood -= torch.distributions.kl_divergence(
-            #     q_f, qp_f_x
-            # ).mean(0)
+            loglikelihood -= torch.distributions.kl_divergence(
+                q_f, qp_f_x
+            ).mean(0)
 
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
