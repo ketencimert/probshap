@@ -327,12 +327,15 @@ class Model(nn.Module):
             #     )
             #tanh_loc makes it more stable. so use this implementation instead.
             pf_xy = torchrl.modules.TruncatedNormal(
-                loc=qp_f_x_loc_, scale=qp_f_x_scale_, low=low, high=high,
+                loc=qp_f_x_loc_.unsqueeze(-1), 
+                scale=qp_f_x_scale_.unsqueeze(-1), 
+                low=low.unsqueeze(-1),
+                high=high.unsqueeze(-1),
                 tanh_loc=True
                 )
 
-            pf_xy_loc = pf_xy.mean
-            pf_xy_scale = pf_xy.variance.pow(0.5)
+            pf_xy_loc = pf_xy.mean.squeeze(-1)
+            pf_xy_scale = pf_xy.variance.squeeze(-1).pow(0.5)
 
             logits = pf_xy.sample().detach()
 
@@ -343,9 +346,9 @@ class Model(nn.Module):
             loglikelihood -= (
                 pf_xy_scale.pow(2) + (pf_xy_loc - qp_f_x_loc).pow(2)
                 ) / (2 * qp_f_x_scale.pow(2))
-            loglikelihood = loglikelihood.mean(0)
+            loglikelihood = loglikelihood
             # loglikelihood += pf_xy.entropy().mean(0)
-            loglikelihood += pf_xy.entropy() / y.shape[0]
+            loglikelihood += pf_xy.entropy()
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
         #         term.
@@ -370,22 +373,24 @@ class Model(nn.Module):
         )
 
         kld = torch.distributions.kl.kl_divergence(q_phi_x, p_phi_x)
-        elbo = loglikelihood - torch.mean(beta * kld)
-
+        elbo = loglikelihood - beta * kld
+        elbo = elbo.mean(0)
+        
         delta_red = p_phi_x_loc2 - q_phi_x_loc
         delta_blue = p_phi_x_loc1 - q_phi_x_loc
         proxy_kld = torch.abs(delta_blue * delta_red.detach()) / (
                 1e-5 + 2 * p_phi_x_scale.pow(2)
                 )
         #add shapley regularization
-        loss = loglikelihood - torch.mean(beta * proxy_kld)
+        loss = loglikelihood - beta * proxy_kld
 
         #if bernoulli use control variates to control for variance?
         if self.likelihood == 'Bernoulli':
             h = pf_xy.log_prob(logits)
             a = sample_covariance(loss, h) / sample_covariance(h,h)
             loss -= a * h.mean(0)
-
+        loss = loss.mean(0)
+        
         return elbo, loss, proxy_kld, py_x_loc, q_phi_x_loc.mean()
 
     def p_phi_x_parameters(
