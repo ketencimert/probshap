@@ -20,7 +20,7 @@ from torch import optim
 from tqdm import tqdm
 from typing import Iterable 
 
-import shap
+# import shap
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
 
@@ -39,6 +39,12 @@ import matplotlib.pyplot as plt
 # matplotlib.rcParams['font.family'] = 'STIXGeneral'
 # matplotlib.rc('text', usetex=True)
 # matplotlib.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
+
+def sample_covariance(x, y):
+    x_mean = torch.mean(x)
+    y_mean = torch.mean(y)
+    cov = torch.sum((x - x_mean) * (y - y_mean)) / (x.numel() - 1)
+    return cov.detach()
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, x, y, device, dtype=torch.double):
@@ -481,10 +487,8 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         optimizer.zero_grad()
         elbo, loss, proxy_kld, y_pred, phi_mean = model(x_tr, y_tr, i_tr)
         (-loss).backward()
-        try:
-            model.beta.grad.data =- model.beta.grad.data
-        except:
-            pass
+        # model.beta.grad.data =- model.beta.grad.data
+        # print(model.beta.grad.data)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
