@@ -68,11 +68,12 @@ if __name__ == '__main__':
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
-    parser.add_argument('--norm', default=None, type=str)
-    parser.add_argument('--phi_net', default='vanilla', type=str)
+    parser.add_argument('--norm', default='layer', type=str)
+    parser.add_argument('--phi_net', default='masked', type=str)
+    parser.add_argument('--cont', action='store_true')
 
     parser.add_argument('--p', default=0, type=float)
-    parser.add_argument('--beta', default=1, type=float)
+    parser.add_argument('--beta', default=2, type=float)
     #data, fold, tune, metric args
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
@@ -158,7 +159,7 @@ if __name__ == '__main__':
                 tr_dataloader.dataset.__len__(),
                 args.n_layers, args.act, args.norm, args.p, args.beta,
                 predictive_distribution,
-                phi_net=args.phi_net,
+                phi_net=args.phi_net, cont=args.cont
                 ).to(args.device)
             optimizer = optim.Adam(
                 model.parameters(),

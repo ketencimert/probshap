@@ -173,12 +173,17 @@ class Model(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb,
             d_data, n_layers, activation, norm, p, beta,
-            likelihood, phi_net
+            likelihood, phi_net, cont
     ):
         super(Model, self).__init__()
-
+        
+        #control variatite
+        self.cont = cont
+        #logit limit for numerical issues(should be inf but whatever)
         self.limit = 10.
+        #beta for kl term
         self.beta = beta
+        #model likelihood
         self.likelihood = likelihood
 
         self.p_f_ = P_f_(
@@ -385,7 +390,7 @@ class Model(nn.Module):
         loss = loglikelihood - beta * proxy_kld
 
         #if bernoulli use control variates to control for variance?
-        if self.likelihood == 'Bernoulli':
+        if self.likelihood == 'Bernoulli' and self.cont:
             h = pf_xy.log_prob(logits)
             a = sample_covariance(loss, h) / sample_covariance(h,h)
             loss -= a * h.mean(0)
