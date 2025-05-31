@@ -18,8 +18,9 @@ from tqdm import tqdm
 from utils import inverse_transform, to_np, sample_covariance
 from modules import create_masked_layers, create_feedforward_layers
 
-from truncated_normal import TruncatedNormal
+# from truncated_normal import TruncatedNormal
 import torchrl
+
 
 class P_f_(nn.Module):
     def __init__(self, d_in, d_hid, n_layers, activation, norm, p):
@@ -42,7 +43,7 @@ class P_f_(nn.Module):
             0.5
         )
 
-        return loc.squeeze(-1), scale.squeeze(-1)
+        return loc.squeeze(-1), scale.squeeze(-1) + 1e-5
 
 
 class Masked_q_phi_x(nn.Module):
@@ -126,7 +127,7 @@ class Masked_q_phi_x(nn.Module):
         # =============================================================================
 
         return loc.squeeze(-1) * m, \
-               scale.squeeze(-1) + 1e-6
+               scale.squeeze(-1) + 1e-5
 
 
 class Vanilla_q_phi_x(nn.Module):
@@ -165,7 +166,7 @@ class Vanilla_q_phi_x(nn.Module):
         )
 
         return loc.squeeze(-1) * m, \
-               scale.squeeze(-1) + 1e-6
+               scale.squeeze(-1) + 1e-5
 
 
 class Model(nn.Module):
@@ -177,19 +178,14 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         self.limit = 10.
-        self.beta = 1
+        self.beta = beta
         self.likelihood = likelihood
+
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
         )
-        self.q_f_loc = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
-        )
-        # initiate it from very small variance
-        self.q_f_scale = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
-        )
+
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
                 d_in, d_hid, d_in, d_emb,
@@ -303,13 +299,13 @@ class Model(nn.Module):
         q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
         qp_f_x_scale, py_x_loc \
             = self.compute_parameters(x, m)
-            
+
         q_phi_x_loc, q_phi_x_loc_ = q_phi_x_loc.split(original_size, 0)
         q_phi_x_scale, q_phi_x_scale_ = q_phi_x_scale.split(original_size, 0)
         qp_f_x_loc, qp_f_x_loc_ = qp_f_x_loc.split(original_size, 0)
         qp_f_x_scale, qp_f_x_scale_ = qp_f_x_scale.split(original_size, 0)
         py_x_loc, py_x_loc_ = py_x_loc.split(original_size, 0)
-        
+
         x = x[:original_size]
         m = m[:original_size]
         # 3. Compute an approximation to p(\phi | x):
@@ -322,15 +318,16 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
-            a = torch.zeros_like(y)
-            b = torch.zeros_like(y)
-            a = a - (y == 0) * self.limit
-            b = b + (y == 1) * self.limit
+            low = torch.zeros_like(y)
+            high = torch.zeros_like(y)
+            low = low - (y == 0) * self.limit
+            high = high + (y == 1) * self.limit
             # pf_xy = TruncatedNormal(
             #     qp_f_x_loc_, qp_f_x_scale_, a, b
             #     )
+            #tanh_loc makes it more stable. so use this implementation instead.
             pf_xy = torchrl.modules.TruncatedNormal(
-                loc=qp_f_x_loc_, scale=qp_f_x_scale_, low=a, high=b, 
+                loc=qp_f_x_loc_, scale=qp_f_x_scale_, low=low, high=high,
                 tanh_loc=True
                 )
 
@@ -378,15 +375,16 @@ class Model(nn.Module):
         delta_red = p_phi_x_loc2 - q_phi_x_loc
         delta_blue = p_phi_x_loc1 - q_phi_x_loc
         proxy_kld = torch.abs(delta_blue * delta_red.detach()) / (
-                1e-6 + 2 * p_phi_x_scale.pow(2)
+                1e-5 + 2 * p_phi_x_scale.pow(2)
                 )
-            
+        #add shapley regularization
         loss = loglikelihood - torch.mean(beta * proxy_kld)
 
+        #if bernoulli use control variates to control for variance?
         if self.likelihood == 'Bernoulli':
             h = pf_xy.log_prob(logits)
             a = sample_covariance(loss, h) / sample_covariance(h,h)
-            loglikelihood -= a * h.mean(0)
+            loss -= a * h.mean(0)
 
         return elbo, loss, proxy_kld, py_x_loc, q_phi_x_loc.mean()
 
