@@ -32,13 +32,15 @@ SCRIPT="main.py"
 
 # Loop over the flags and start a new screen for each
 for i in "${!FLAGS_LIST[@]}"; do
-  SESSION_NAME="${SESSION_PREFIX}$i"
+  SESSION_NAME="${SESSION_PREFIX}_$i"
   FLAGS="${FLAGS_LIST[$i]}"
   
-  echo "Launching $SCRIPT with flags: $FLAGS in screen: $SESSION_NAME"
+  echo "Launching screen session '$SESSION_NAME' with: python $SCRIPT $FLAGS"
 
-  # Start a detached screen session that runs main.py with the given flags
-  screen -dmS "$SESSION_NAME" 
+  # Start a detached screen session with command
+  screen -dmS "$SESSION_NAME" bash -c "python $SCRIPT $FLAGS; exec bash"
+  bash -c "conda init"
   bash -c "conda activate torchrl"
-  bash -c "python $SCRIPT $FLAGS; exec bash"
+  # Optional short sleep to ensure proper detachment before next launch (tweak as needed)
+  sleep 0.2
 done
