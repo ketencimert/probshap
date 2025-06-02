@@ -38,5 +38,7 @@ for i in "${!FLAGS_LIST[@]}"; do
   echo "Launching $SCRIPT with flags: $FLAGS in screen: $SESSION_NAME"
 
   # Start a detached screen session that runs main.py with the given flags
-  screen -dmS "$SESSION_NAME" bash -c "python $SCRIPT $FLAGS; exec bash"
+  screen -dmS "$SESSION_NAME" 
+  bash -c "conda activate researchenv_new"
+  bash -c "python $SCRIPT $FLAGS; exec bash"
 done
