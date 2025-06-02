@@ -67,7 +67,7 @@ if __name__ == '__main__':
         '--model_id', default=0, type=int, help='model_id.'
     )
     parser.add_argument(
-        '--dataset', default='lung_normal', type=str
+        '--dataset', default='mnist_normal_8', type=str
     )
     parser.add_argument(
         '--phi_net', default='masked', type=str
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     random.seed(SEED), np.random.seed(SEED), torch.manual_seed(SEED)
     path = str(find_latest(dataset, Path('./model_checkpoints')))
 
-    model = torch.load(path).to(device).eval()
+    # model = torch.load(path).to(device).eval()
     if 'False' in path.split('preprocess')[-1].split(')')[0][1:]:
         preprocess = False
     else:

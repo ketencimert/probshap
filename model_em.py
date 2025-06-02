@@ -12,6 +12,7 @@ import pandas as pd
 import torch
 from torch import nn
 from torch.distributions.normal import Normal
+from torch.distributions.bernoulli import Bernoulli
 
 from tqdm import tqdm
 
@@ -185,7 +186,9 @@ class Model(nn.Module):
         self.beta = beta
         #model likelihood
         self.likelihood = likelihood
-
+        
+        self.gamma = nn.Parameter(torch.randn(1), requires_grad = True)
+        
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
@@ -351,7 +354,9 @@ class Model(nn.Module):
             loglikelihood -= (
                 pf_xy_scale.pow(2) + (pf_xy_loc - qp_f_x_loc).pow(2)
                 ) / (2 * qp_f_x_scale.pow(2))
-            loglikelihood = loglikelihood
+            loglikelihood += Bernoulli(
+                logits=pf_xy.rsample().squeeze(-1) * nn.Softplus()(self.gamma)
+                ).log_prob(y)
             # loglikelihood += pf_xy.entropy().mean(0)
             loglikelihood += pf_xy.entropy()
         # =============================================================================
