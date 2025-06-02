@@ -70,8 +70,8 @@ if __name__ == '__main__':
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default=None, type=str)
     parser.add_argument('--phi_net', default='masked', type=str)
-    # parser.add_argument('--cont', action='store_true')
-    parser.add_argument('--cont', default=True)
+    parser.add_argument('--cont', action='store_true')
+    # parser.add_argument('--cont', default=True)
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=2, type=float)
     #data, fold, tune, metric args
