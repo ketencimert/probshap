@@ -131,7 +131,7 @@ def pr_auc(y_pred, y):
     try:
         score = average_precision_score(y, y_pred)
     except:
-        score = np.asarray([np.nan])
+        score = np.nan
     return score
 
 def prepare_fold(
