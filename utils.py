@@ -40,6 +40,12 @@ import matplotlib.pyplot as plt
 # matplotlib.rc('text', usetex=True)
 # matplotlib.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 
+def check_nan(epoch_results):
+    isnan = any(
+        [sum(np.isnan(np.asarray(v))) == 1 for v in epoch_results.values()]
+        )
+    return isnan
+
 def sample_covariance(x, y):
     x_mean = torch.mean(x)
     y_mean = torch.mean(y)

@@ -9,6 +9,8 @@ import scipy
 import argparse
 import random
 from collections import defaultdict
+from copy import deepcopy
+
 import os
 
 
@@ -34,7 +36,7 @@ from utils import (
     accuracy
     )
 
-from utils import to_np
+from utils import to_np, check_nan
 
 import matplotlib.pyplot as plt
 
@@ -63,14 +65,14 @@ if __name__ == '__main__':
     parser.add_argument('--model_id', default=0, type=int,
                         help='model_id.'
                         )
-    parser.add_argument('--d_emb', default=50, type=int)
-    parser.add_argument('--d_hid', default=300, type=int)
+    parser.add_argument('--d_emb', default=20, type=int)
+    parser.add_argument('--d_hid', default=150, type=int)
     #looks like the more n_layers you have the better approximation
     parser.add_argument('--n_layers', default=4, type=int)
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default=None, type=str)
-    parser.add_argument('--phi_net', default='masked', type=str)
-    parser.add_argument('--cont', action='store_true')
+    parser.add_argument('--phi_net', default='vanilla', type=str)
+    parser.add_argument('--cont', default=True)
     # parser.add_argument('--cont', default=True)
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=2, type=float)
@@ -78,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv_folds', default=1, type=int,
                         help='if you want to plot shapes use cv_folds=1'
                         )
-    parser.add_argument('--dataset', default='icu', type=str)
+    parser.add_argument('--dataset', default='mnist_normal_0', type=str)
     parser.add_argument('--preprocess', default=True,
                         help='convert to action="store_true" if not \
                         running on an IDE.'
@@ -86,7 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--check_early_stop', default=150, type=int,
                         help='check early stop every 150 epochs.'
                         )
-    parser.add_argument('--early_stop', default=200, type=int,
+    parser.add_argument('--early_stop', default=40, type=int,
                         help='stop if no improvement for 20 checks.'
                         )
     args = parser.parse_args()
@@ -193,7 +195,18 @@ if __name__ == '__main__':
                 best_model = get_best_model(
                     best_model, model, epoch_results, metric
                     )
-
+                
+                if check_nan(epoch_results):
+                    print('Looks like there has been a gradient issue.')
+                    print('Reverting to latest best model.')
+                    model = deepcopy(best_model)
+                    print('Re-initializnig the optimizer')
+                    optimizer = optim.Adam(
+                        model.parameters(),
+                        lr=args.lr,  weight_decay=args.wd,
+                        )
+                    
+                
                 if epoch % args.check_early_stop == 0 and epoch != 0:
                     STOP = check_early_stop(
                         STOP, epoch, args.check_early_stop,
