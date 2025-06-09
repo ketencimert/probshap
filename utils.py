@@ -40,11 +40,24 @@ import matplotlib.pyplot as plt
 # matplotlib.rc('text', usetex=True)
 # matplotlib.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 
+def remove_nans(epoch_results):
+    nan_index = np.inf
+    for key, value in epoch_results.items():
+        try:
+            nan_index = min(value.index(np.nan), nan_index)
+        except:
+            pass
+    for key in epoch_results.keys():
+        epoch_results[key] = epoch_results[key][:nan_index]
+    return epoch_results
+
 def check_nan(epoch_results):
     isnan = any(
         [sum(np.isnan(np.asarray(v))) == 1 for v in epoch_results.values()]
         )
-    return isnan
+    if isnan:
+        epoch_results = remove_nans(epoch_results)
+    return isnan, epoch_results
 
 def sample_covariance(x, y):
     x_mean = torch.mean(x)

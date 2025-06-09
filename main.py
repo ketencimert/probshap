@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--act', default='elu', type=str)
     parser.add_argument('--norm', default=None, type=str)
     parser.add_argument('--phi_net', default='vanilla', type=str)
-    parser.add_argument('--cont', default=True)
+    parser.add_argument('--cont', action='store_true')
     # parser.add_argument('--cont', default=True)
     parser.add_argument('--p', default=0, type=float)
     parser.add_argument('--beta', default=2, type=float)
@@ -195,17 +195,16 @@ if __name__ == '__main__':
                 best_model = get_best_model(
                     best_model, model, epoch_results, metric
                     )
-                
+
                 if check_nan(epoch_results):
                     print('Looks like there has been a gradient issue.')
                     print('Reverting to latest best model.')
-                    model = deepcopy(best_model)
+                    model, epoch_results = deepcopy(best_model)
                     print('Re-initializnig the optimizer')
                     optimizer = optim.Adam(
                         model.parameters(),
                         lr=args.lr,  weight_decay=args.wd,
                         )
-                    
                 
                 if epoch % args.check_early_stop == 0 and epoch != 0:
                     STOP = check_early_stop(
