@@ -195,11 +195,13 @@ if __name__ == '__main__':
                 best_model = get_best_model(
                     best_model, model, epoch_results, metric
                     )
-
-                if check_nan(epoch_results):
+                
+                isnan, epoch_results = check_nan(epoch_results)
+                
+                if isnan:
                     print('Looks like there has been a gradient issue.')
                     print('Reverting to latest best model.')
-                    model, epoch_results = deepcopy(best_model)
+                    model = deepcopy(best_model)
                     print('Re-initializnig the optimizer')
                     optimizer = optim.Adam(
                         model.parameters(),
