@@ -330,7 +330,7 @@ class Model(nn.Module):
                 nn.Softplus()(self.q_f_scale[i]) + 1e-5
                 )
             loglikelihood = Bernoulli(
-                logits=q_f.rsample() * nn.Softplus()(self.gamma)
+                logits=q_f.rsample()
                 ).log_prob(y)
             loglikelihood -= torch.distributions.kl_divergence(
                 q_f, qp_f_x

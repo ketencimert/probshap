@@ -127,7 +127,7 @@ class Masked_q_phi_x(nn.Module):
         #         Therefore multiply by m if you want
         # =============================================================================
 
-        return loc.squeeze(-1) * m, \
+        return loc.squeeze(-1), \
                scale.squeeze(-1) + 1e-5
 
 
@@ -166,7 +166,7 @@ class Vanilla_q_phi_x(nn.Module):
             torch.cat([loc.detach(), x, m], -1))
         )
 
-        return loc.squeeze(-1) * m, \
+        return loc.squeeze(-1), \
                scale.squeeze(-1) + 1e-5
 
 
@@ -183,7 +183,8 @@ class Model(nn.Module):
         #logit limit for numerical issues(should be inf but whatever)
         self.limit = 10.
         #beta for kl term
-        self.beta = beta
+        # self.beta = beta
+        self.beta = nn.Parameter(torch.zeros(d_in), requires_grad=True)
         #model likelihood
         self.likelihood = likelihood
         
@@ -343,7 +344,9 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
-        beta = self.beta
+        beta = self.beta.gather(
+            0, feature_idx.long()
+        )
         # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
