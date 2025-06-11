@@ -192,19 +192,28 @@ class Model(nn.Module):
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
-        )
+            )
+
+
+        self.q_f_loc = nn.Parameter(
+            torch.randn(d_data), requires_grad=True
+            )
+        # initiate it from very small variance
+        self.q_f_scale = nn.Parameter(
+            torch.randn(d_data), requires_grad=True
+            )
 
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
                 d_in, d_hid, d_in, d_emb,
                 n_layers, activation, norm, p,
-            )
+                )
         else:
             self.q_phi_x = Vanilla_q_phi_x(
                 d_in, d_hid, d_in,
                 n_layers, activation, norm, p,
                 baseline=3
-            )
+                )
 
     def predict(self, x, numpy=True):
         # =============================================================================
@@ -299,23 +308,12 @@ class Model(nn.Module):
         # =============================================================================
         # 1. Generate missing values vector m \sim p(s), where m is 0
         # model won't see corresponding x values.
-        original_size = x.size(0)
         m = self.missingness_indicator(x)
-        x = torch.cat([x, x],0)
-        m = torch.cat([m, torch.ones_like(m)],0)
         # 2. Compute distributions sufficient statistics.
         q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
         qp_f_x_scale, py_x_loc \
             = self.compute_parameters(x, m)
 
-        q_phi_x_loc, q_phi_x_loc_ = q_phi_x_loc.split(original_size, 0)
-        q_phi_x_scale, q_phi_x_scale_ = q_phi_x_scale.split(original_size, 0)
-        qp_f_x_loc, qp_f_x_loc_ = qp_f_x_loc.split(original_size, 0)
-        qp_f_x_scale, qp_f_x_scale_ = qp_f_x_scale.split(original_size, 0)
-        py_x_loc, py_x_loc_ = py_x_loc.split(original_size, 0)
-
-        x = x[:original_size]
-        m = m[:original_size]
         # 3. Compute an approximation to p(\phi | x):
         p_phi_x_loc1, p_phi_x_loc2, feature_idx \
             = self.p_phi_x_parameters(x, m)
@@ -326,39 +324,18 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
-            low = torch.zeros_like(y)
-            high = torch.zeros_like(y)
-            low = low - (y == 0) * self.limit
-            high = high + (y == 1) * self.limit
-            # pf_xy = TruncatedNormal(
-            #     qp_f_x_loc_, qp_f_x_scale_, a, b
-            #     )
-            #tanh_loc makes it more stable. so use this implementation instead.
-            pf_xy = torchrl.modules.TruncatedNormal(
-                loc=qp_f_x_loc_.unsqueeze(-1), 
-                scale=qp_f_x_scale_.unsqueeze(-1), 
-                low=low.unsqueeze(-1),
-                high=high.unsqueeze(-1),
-                tanh_loc=True
+
+            q_f = Normal(
+                self.q_f_loc[i],
+                nn.Softplus()(self.q_f_scale[i]) + 1e-5
                 )
-
-            pf_xy_loc = pf_xy.mean.squeeze(-1).detach()
-            pf_xy_variance = pf_xy.variance.squeeze(-1).clamp(min=1e-5).detach()
-
-            logits = pf_xy.sample().detach()
-
-            #M-step: Evaluate the ELBO and maximize
-            loglikelihood = - 1/2 * torch.log(
-                2 * np.pi * qp_f_x_scale.pow(2) + 1e-5
-                )
-            loglikelihood -= (
-                pf_xy_variance + (pf_xy_loc - qp_f_x_loc).pow(2)
-                ) / (2 * qp_f_x_scale.pow(2) + 1e-5)
-            loglikelihood += Bernoulli(
-                logits=logits.squeeze(-1) * nn.Softplus()(self.gamma)
+            loglikelihood = Bernoulli(
+                logits=q_f.rsample() * (nn.Softplus()(self.gamma) + 1e-5)
                 ).log_prob(y)
-            # loglikelihood += pf_xy.entropy().mean(0)
-            # loglikelihood += pf_xy.entropy()
+            loglikelihood -= torch.distributions.kl_divergence(
+                q_f, qp_f_x
+                )
+            logits = q_f.sample().detach()
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
         #         term.
@@ -396,7 +373,7 @@ class Model(nn.Module):
 
         #if bernoulli use control variates to control for variance?
         if self.likelihood == 'Bernoulli' and self.cont:
-            h = pf_xy.log_prob(logits)
+            h = q_f.log_prob(logits)
             a = sample_covariance(loss, h) / sample_covariance(h,h)
             loss -= a * h.mean(0)
         loss = loss.mean(0)
