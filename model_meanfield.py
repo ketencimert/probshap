@@ -24,7 +24,7 @@ import torchrl
 
 
 class P_f_(nn.Module):
-    def __init__(self, d_in, d_hid, n_layers, activation, norm, p):
+    def __init__(self, d_in, d_hid, n_layers, activation, norm, p, likelihood):
         super().__init__()
         # =============================================================================
         #         This is predictive net where you sum latent Shapley values to come up
@@ -36,13 +36,19 @@ class P_f_(nn.Module):
         self.scale = nn.Parameter(
             torch.randn(1), requires_grad=True
         )
-
+        self.likelihood = likelihood
     def forward(self, q_phi_x_loc, q_phi_x_scale):
         loc = q_phi_x_loc.sum(-1) + self.bias
-        scale = torch.pow(
-            q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
-            0.5
-        )
+        if self.likelihood == 'Normal':
+            scale = torch.pow(
+                q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
+                0.5
+            )
+        elif self.likelihood == 'Bernoulli':
+            scale = torch.pow(
+                q_phi_x_scale.pow(2).sum(-1),
+                0.5
+            )
 
         return loc.squeeze(-1), scale.squeeze(-1) + 1e-5
 
@@ -192,6 +198,7 @@ class Model(nn.Module):
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
+            likelihood
             )
 
 
@@ -330,7 +337,10 @@ class Model(nn.Module):
                 nn.Softplus()(self.q_f_scale[i]) + 1e-5
                 )
             loglikelihood = Bernoulli(
-                logits=q_f.rsample() * (nn.Softplus()(self.gamma) + 1e-5)
+                probs=1 - Normal(
+                    q_f.rsample(), 
+                    nn.Softplus()(self.p_f_.scale)
+                    ).cdf(torch.zeros_like(y))
                 ).log_prob(y)
             loglikelihood -= torch.distributions.kl_divergence(
                 q_f, qp_f_x
