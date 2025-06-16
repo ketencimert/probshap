@@ -176,6 +176,7 @@ class Model(nn.Module):
         
         self.limit = 10.
         self.beta = beta
+        self.gamma = nn.Parameter(torch.randn(1),requires_grad=True)
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -323,7 +324,7 @@ class Model(nn.Module):
 
             pf_xy_loc = pf_xy.mean.squeeze(-1)
             pf_xy_var = pf_xy.variance.squeeze(-1).clamp(min=1e-5)
-            logits = pf_xy.rsample().squueze(-1)
+            logits = pf_xy.rsample().squeeze(-1)
             #M-step: Evaluate the ELBO and maximize
             loglikelihood = - 1/2 * torch.log(
                 2 * np.pi * qp_f_x_scale.pow(2)
@@ -334,7 +335,9 @@ class Model(nn.Module):
 
             loglikelihood = loglikelihood.mean()
             loglikelihood += pf_xy.entropy().mean()
-            loglikelihood += Bernoulli(logits=logits).log_prob(y).mean()
+            loglikelihood += Bernoulli(
+                logits=logits * nn.Softplus()(self.gamma)
+                ).log_prob(y).mean()
 
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
