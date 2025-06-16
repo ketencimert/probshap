@@ -309,7 +309,7 @@ class Model(nn.Module):
             )
             logits = q_f.rsample()
             loglikelihood = Bernoulli(
-                probs=logits
+                logits=logits
                 ).log_prob(y).mean(0)
             # loglikelihood += qp_f_x.log_prob(
             #     logits
