@@ -35,17 +35,11 @@ class P_f_(nn.Module):
         self.likelihood = likelihood
     def forward(self, q_phi_x_loc, q_phi_x_scale):
         loc = q_phi_x_loc.sum(-1) + self.bias
-        if self.likelihood == 'Normal':
-            scale = torch.pow(
-                q_phi_x_scale.pow(2).sum(-1) \
-                    + nn.Softplus()(self.scale).pow(2),
-                0.5
-            )
-        elif self.likelihood == 'Bernoulli':
-            scale = torch.pow(
-                q_phi_x_scale.pow(2).sum(-1),
-                0.5
-            )
+        scale = torch.pow(
+            q_phi_x_scale.pow(2).sum(-1) \
+                + nn.Softplus()(self.scale).pow(2),
+            0.5
+        )
         return loc.squeeze(-1), scale.squeeze(-1)
 
 
@@ -171,43 +165,6 @@ class Vanilla_q_phi_x(nn.Module):
         return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-6
 
-class Q_f(nn.Module):
-    def __init__(
-            self, d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
-    ):
-        super(Q_f, self).__init__()
-        # =============================================================================
-        #         Standard masked neural network.
-        # =============================================================================
-
-        self.scale_net = nn.Sequential(
-            nn.Sequential(
-                *create_feedforward_layers(
-                    d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-                )
-            )
-        )
-
-        self.loc_net = nn.Sequential(
-            *create_feedforward_layers(
-                d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-            )
-        )
-        
-        self.embeddings = nn.Embedding(d_data, d_emb)
-        
-    def forward(self, i, m):
-        e = self.embeddings(i.long())
-        z = torch.cat([e, m*1.], -1)
-        loc = self.loc_net(z)
-        scale = nn.Softplus()(self.scale_net(
-            z
-        )
-            )
-
-        return loc.squeeze(-1), \
-               scale.squeeze(-1) + 1e-6
-
 class Model(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb,
@@ -222,13 +179,6 @@ class Model(nn.Module):
             d_in, d_hid,
             n_layers, activation, norm, p,
             likelihood
-        )
-        self.q_f_net = Q_f(
-            d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
-        )
-        # initiate it from very small variance
-        self.q_f_scale = nn.Parameter(
-            torch.randn(d_data, d_in), requires_grad=True
         )
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
@@ -359,10 +309,7 @@ class Model(nn.Module):
             )
             logits = q_f.rsample()
             loglikelihood = Bernoulli(
-                probs=1 - Normal(
-                    logits, 
-                    nn.Softplus()(self.p_f_.scale)
-                    ).cdf(torch.zeros_like(logits))
+                probs=logits
                 ).log_prob(y).mean(0)
             # loglikelihood += qp_f_x.log_prob(
             #     logits

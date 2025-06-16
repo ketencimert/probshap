@@ -40,6 +40,12 @@ import matplotlib.pyplot as plt
 # matplotlib.rc('text', usetex=True)
 # matplotlib.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 
+def sample_covariance(x, y):
+    x_mean = torch.mean(x)
+    y_mean = torch.mean(y)
+    cov = torch.sum((x - x_mean) * (y - y_mean)) / (x.numel() - 1)
+    return cov.detach()
+
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, x, y, device, dtype=torch.double):
         x = x.astype(np.float32)
@@ -481,7 +487,10 @@ def train_one_epoch(model, optimizer, dataloader, metric):
         optimizer.zero_grad()
         elbo, loss, proxy_kld, y_pred, phi_mean = model(x_tr, y_tr, i_tr)
         (-loss).backward()
-        model.beta.grad.data =- model.beta.grad.data
+        try:
+            model.beta.grad.data =- model.beta.grad.data
+        except:
+            pass
         # print(model.beta.grad.data)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()

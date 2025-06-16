@@ -96,6 +96,16 @@ if __name__ == '__main__':
         from model_meanfield1 import Model
     elif args.model_id == 2:
         from model_meanfield2 import Model
+    elif args.model_id == 3:
+        from model_meanfield2 import Model
+    elif args.model_id == 4:
+        from model_meanfield3 import Model
+    elif args.model_id == 5:
+        from model_truncated1 import Model
+    elif args.model_id == 6:
+        from model_truncated2 import Model
+    elif args.model_id == 7:
+        from model_truncated3 import Model
 
     MODEL_NAME = f'ProbabilisticShapley{str(args.model_id)}'
 

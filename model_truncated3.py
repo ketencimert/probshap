@@ -15,6 +15,7 @@ from torch.distributions.normal import Normal
 from torch.distributions.bernoulli import Bernoulli
 
 from tqdm import tqdm
+import torchrl
 
 from utils import inverse_transform, to_np
 from modules import create_masked_layers, create_feedforward_layers
@@ -35,17 +36,11 @@ class P_f_(nn.Module):
         self.likelihood = likelihood
     def forward(self, q_phi_x_loc, q_phi_x_scale):
         loc = q_phi_x_loc.sum(-1) + self.bias
-        if self.likelihood == 'Normal':
-            scale = torch.pow(
-                q_phi_x_scale.pow(2).sum(-1) \
-                    + nn.Softplus()(self.scale).pow(2),
-                0.5
-            )
-        elif self.likelihood == 'Bernoulli':
-            scale = torch.pow(
-                q_phi_x_scale.pow(2).sum(-1),
-                0.5
-            )
+        scale = torch.pow(
+            q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
+            0.5
+        )
+
         return loc.squeeze(-1), scale.squeeze(-1)
 
 
@@ -171,43 +166,6 @@ class Vanilla_q_phi_x(nn.Module):
         return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-6
 
-class Q_f(nn.Module):
-    def __init__(
-            self, d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
-    ):
-        super(Q_f, self).__init__()
-        # =============================================================================
-        #         Standard masked neural network.
-        # =============================================================================
-
-        self.scale_net = nn.Sequential(
-            nn.Sequential(
-                *create_feedforward_layers(
-                    d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-                )
-            )
-        )
-
-        self.loc_net = nn.Sequential(
-            *create_feedforward_layers(
-                d_emb + d_in, d_hid, 1, n_layers, activation, p, norm
-            )
-        )
-        
-        self.embeddings = nn.Embedding(d_data, d_emb)
-        
-    def forward(self, i, m):
-        e = self.embeddings(i.long())
-        z = torch.cat([e, m*1.], -1)
-        loc = self.loc_net(z)
-        scale = nn.Softplus()(self.scale_net(
-            z
-        )
-            )
-
-        return loc.squeeze(-1), \
-               scale.squeeze(-1) + 1e-6
-
 class Model(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb,
@@ -215,7 +173,8 @@ class Model(nn.Module):
             likelihood, phi_net
     ):
         super(Model, self).__init__()
-
+        
+        self.limit = 10.
         self.beta = beta
         self.likelihood = likelihood
         self.p_f_ = P_f_(
@@ -223,9 +182,7 @@ class Model(nn.Module):
             n_layers, activation, norm, p,
             likelihood
         )
-        self.q_f_net = Q_f(
-            d_in, d_data, d_emb, d_hid, n_layers, activation, p ,norm
-        )
+
         # initiate it from very small variance
         self.q_f_scale = nn.Parameter(
             torch.randn(d_data, d_in), requires_grad=True
@@ -350,27 +307,34 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
-            # q_f_loc, q_f_scale = self.q_f_net(i, m)
+
+            low = torch.zeros_like(y)
+            high = torch.zeros_like(y)
+            low = low - (y == 0) * self.limit
+            high = high + (y == 1) * self.limit
             # q_f_scale = torch.sum(self.q_f_scale[i] * m, -1)
-            q_f = Normal(
-                qp_f_x_loc,
-                qp_f_x_scale
-                # nn.Softplus()(q_f_scale)
-            )
-            logits = q_f.rsample()
-            loglikelihood = Bernoulli(
-                probs=1 - Normal(
-                    logits, 
-                    nn.Softplus()(self.p_f_.scale)
-                    ).cdf(torch.zeros_like(logits))
-                ).log_prob(y).mean(0)
-            # loglikelihood += qp_f_x.log_prob(
-            #     logits
-            #     ).mean(0)
-            # loglikelihood += q_f.entropy().mean(0)
-            # loglikelihood -= torch.distributions.kl_divergence(
-            #     q_f, qp_f_x
-            # ).mean(0)
+            pf_xy = torchrl.modules.TruncatedNormal(
+                loc=qp_f_x_loc.unsqueeze(-1), 
+                scale=qp_f_x_scale.unsqueeze(-1), 
+                low=low.unsqueeze(-1),
+                high=high.unsqueeze(-1),
+                tanh_loc=True
+                )
+
+            pf_xy_loc = pf_xy.mean.squeeze(-1)
+            pf_xy_var = pf_xy.variance.squeeze(-1).clamp(min=1e-5)
+            logits = pf_xy.rsample().squueze(-1)
+            #M-step: Evaluate the ELBO and maximize
+            loglikelihood = - 1/2 * torch.log(
+                2 * np.pi * qp_f_x_scale.pow(2)
+                )
+            loglikelihood -= (
+                pf_xy_var + (pf_xy_loc - qp_f_x_loc).pow(2)
+                ) / (2 * qp_f_x_scale.pow(2))
+
+            loglikelihood = loglikelihood.mean()
+            loglikelihood += pf_xy.entropy().mean()
+            loglikelihood += Bernoulli(logits=logits).log_prob(y).mean()
 
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
@@ -380,7 +344,6 @@ class Model(nn.Module):
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
         beta = self.beta
-        # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)

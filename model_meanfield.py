@@ -19,14 +19,6 @@ from tqdm import tqdm
 from utils import inverse_transform, to_np
 from modules import create_masked_layers, create_feedforward_layers
 
-
-def sample_covariance(x, y):
-    x_mean = torch.mean(x)
-    y_mean = torch.mean(y)
-    cov = torch.sum((x - x_mean) * (y - y_mean)) / (x.numel() - 1)
-    return cov.detach()
-
-
 class P_f_(nn.Module):
     def __init__(self, d_in, d_hid, n_layers, activation, norm, p, likelihood):
         super(P_f_, self).__init__()
@@ -187,7 +179,7 @@ class Model(nn.Module):
     ):
         super(Model, self).__init__()
 
-        self.beta = nn.Parameter(torch.zeros(d_in), requires_grad=True)
+        self.beta = beta
         self.likelihood = likelihood
         self.p_f_ = P_f_(
             d_in, d_hid,
@@ -347,7 +339,7 @@ class Model(nn.Module):
         q_phi_x_loc = q_phi_x_loc.gather(
             1, feature_idx.long().unsqueeze(-1)
         ).squeeze(-1)
-        beta = nn.Softplus()(self.beta).gather(0, feature_idx.long())
+        beta = self.beta
         # beta = torch.ones_like(beta)
         q_phi_x_scale = q_phi_x_scale.gather(
             1, feature_idx.long().unsqueeze(-1)
