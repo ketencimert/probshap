@@ -94,7 +94,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.model_id == 0:
-        from model_em import Model
+        from model_truncated1 import Model
+    elif args.model_id == 1:
+        from model_truncated2 import Model
+    elif args.model_id == 2:
+        from model_truncated3 import Model
+    elif args.model_id == 3:
+        from model_truncated4 import Model
+    elif args.model_id == 4:
+        from model_truncated5 import Model
 
     MODEL_NAME = f'ProbabilisticShapley{str(args.model_id)}'
 
