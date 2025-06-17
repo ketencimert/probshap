@@ -19,12 +19,11 @@ from tqdm import tqdm
 from utils import inverse_transform, to_np, sample_covariance
 from modules import create_masked_layers, create_feedforward_layers
 
-# from truncated_normal import TruncatedNormal
 import torchrl
 
 
 class P_f_(nn.Module):
-    def __init__(self, d_in, d_hid, n_layers, activation, norm, p):
+    def __init__(self, d_in, d_hid, n_layers, activation, norm, p, likelihood):
         super(P_f_, self).__init__()
         # =============================================================================
         #         This is predictive net where you sum latent Shapley values to come up
@@ -36,14 +35,20 @@ class P_f_(nn.Module):
         self.scale = nn.Parameter(
             torch.randn(1), requires_grad=True
         )
-
+        self.likelihood = likelihood
     def forward(self, q_phi_x_loc, q_phi_x_scale):
         loc = q_phi_x_loc.sum(-1) + self.bias
-        scale = torch.pow(
-            q_phi_x_scale.pow(2).sum(-1) + nn.Softplus()(self.scale).pow(2),
-            0.5
-        )
-
+        if self.likelihood == 'Normal':
+            scale = torch.pow(
+                q_phi_x_scale.pow(2).sum(-1) \
+                    + nn.Softplus()(self.scale).pow(2),
+                0.5
+            )
+        elif self.likelihood == 'Bernoulli':
+            scale = torch.pow(
+                q_phi_x_scale.pow(2).sum(-1),
+                0.5
+            )
         return loc.squeeze(-1), scale.squeeze(-1) + 1e-5
 
 
@@ -127,7 +132,7 @@ class Masked_q_phi_x(nn.Module):
         #         Therefore multiply by m if you want
         # =============================================================================
 
-        return loc.squeeze(-1), \
+        return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-5
 
 
@@ -166,7 +171,7 @@ class Vanilla_q_phi_x(nn.Module):
             torch.cat([loc.detach(), x, m], -1))
         )
 
-        return loc.squeeze(-1), \
+        return loc.squeeze(-1) * m, \
                scale.squeeze(-1) + 1e-5
 
 
@@ -186,12 +191,10 @@ class Model(nn.Module):
         self.beta = beta
         #model likelihood
         self.likelihood = likelihood
-        
-        self.gamma = nn.Parameter(torch.randn(1), requires_grad = True)
-        
+
         self.p_f_ = P_f_(
             d_in, d_hid,
-            n_layers, activation, norm, p,
+            n_layers, activation, norm, p, likelihood
         )
 
         if phi_net == 'masked':
@@ -299,23 +302,12 @@ class Model(nn.Module):
         # =============================================================================
         # 1. Generate missing values vector m \sim p(s), where m is 0
         # model won't see corresponding x values.
-        original_size = x.size(0)
         m = self.missingness_indicator(x)
-        x = torch.cat([x, x],0)
-        m = torch.cat([m, torch.ones_like(m)],0)
         # 2. Compute distributions sufficient statistics.
         q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
         qp_f_x_scale, py_x_loc \
             = self.compute_parameters(x, m)
 
-        q_phi_x_loc, q_phi_x_loc_ = q_phi_x_loc.split(original_size, 0)
-        q_phi_x_scale, q_phi_x_scale_ = q_phi_x_scale.split(original_size, 0)
-        qp_f_x_loc, qp_f_x_loc_ = qp_f_x_loc.split(original_size, 0)
-        qp_f_x_scale, qp_f_x_scale_ = qp_f_x_scale.split(original_size, 0)
-        py_x_loc, py_x_loc_ = py_x_loc.split(original_size, 0)
-
-        x = x[:original_size]
-        m = m[:original_size]
         # 3. Compute an approximation to p(\phi | x):
         p_phi_x_loc1, p_phi_x_loc2, feature_idx \
             = self.p_phi_x_parameters(x, m)
@@ -335,8 +327,8 @@ class Model(nn.Module):
             #     )
             #tanh_loc makes it more stable. so use this implementation instead.
             pf_xy = torchrl.modules.TruncatedNormal(
-                loc=qp_f_x_loc_.unsqueeze(-1), 
-                scale=qp_f_x_scale_.unsqueeze(-1), 
+                loc=qp_f_x_loc.unsqueeze(-1), 
+                scale=qp_f_x_scale.unsqueeze(-1), 
                 low=low.unsqueeze(-1),
                 high=high.unsqueeze(-1),
                 tanh_loc=True
@@ -349,13 +341,16 @@ class Model(nn.Module):
 
             #M-step: Evaluate the ELBO and maximize
             loglikelihood = - 1/2 * torch.log(
-                2 * np.pi * qp_f_x_scale.pow(2)
+                2 * np.pi * qp_f_x_scale.pow(2) + 1e-5
                 )
             loglikelihood -= (
-                pf_xy_var + (pf_xy_loc - qp_f_x_loc).pow(2)
-                ) / (2 * qp_f_x_scale.pow(2))
+               pf_xy_var + (pf_xy_loc - qp_f_x_loc).pow(2)
+                ) / (2 * qp_f_x_scale.pow(2) + 1e-5)
             loglikelihood += Bernoulli(
-                logits=pf_xy.rsample().squeeze(-1)
+                probs=1 - Normal(
+                    logits, 
+                    nn.Softplus()(self.p_f_.scale)
+                    ).cdf(torch.zeros_like(logits))
                 ).log_prob(y)
             # loglikelihood += pf_xy.entropy().mean(0)
             loglikelihood += pf_xy.entropy()

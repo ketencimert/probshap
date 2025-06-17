@@ -95,19 +95,7 @@ if __name__ == '__main__':
 
     if args.model_id == 0:
         from model_em import Model
-    elif args.model_id == 1:
-        from model_em1 import Model
-    elif args.model_id == 2:
-        from model_em2 import Model
-    elif args.model_id == 3:
-        from model_meanfield import Model
-    elif args.model_id == 4:
-        from model_meanfield1 import Model
-    elif args.model_id == 5:
-        from model_meanfield2 import Model
-    elif args.model_id == 6:
-        from model_meanfield3 import Model
-        
+
     MODEL_NAME = f'ProbabilisticShapley{str(args.model_id)}'
 
     SEED = 11

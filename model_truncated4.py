@@ -19,13 +19,10 @@ from tqdm import tqdm
 from utils import inverse_transform, to_np, sample_covariance
 from modules import create_masked_layers, create_feedforward_layers
 
-# from truncated_normal import TruncatedNormal
-import torchrl
-
 
 class P_f_(nn.Module):
     def __init__(self, d_in, d_hid, n_layers, activation, norm, p):
-        super().__init__()
+        super(P_f_, self).__init__()
         # =============================================================================
         #         This is predictive net where you sum latent Shapley values to come up
         #         to y or logits, l
@@ -51,7 +48,7 @@ class Masked_q_phi_x(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb, n_layers, activation, norm, p,
     ):
-        super().__init__()
+        super(Masked_q_phi_x, self).__init__()
         # =============================================================================
         #         Masked net as described in the paper.
         # =============================================================================
@@ -136,7 +133,7 @@ class Vanilla_q_phi_x(nn.Module):
             self, d_in, d_hid, d_out, n_layers, activation, norm, p,
             baseline
     ):
-        super().__init__()
+        super(Vanilla_q_phi_x, self).__init__()
         # =============================================================================
         #         Standard masked neural network.
         # =============================================================================
@@ -176,7 +173,7 @@ class Model(nn.Module):
             d_data, n_layers, activation, norm, p, beta,
             likelihood, phi_net, cont
     ):
-        super().__init__()
+        super(Model, self).__init__()
         
         #control variatite
         self.cont = cont
@@ -192,28 +189,19 @@ class Model(nn.Module):
         self.p_f_ = P_f_(
             d_in, d_hid,
             n_layers, activation, norm, p,
-            )
-
-
-        self.q_f_loc = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
-            )
-        # initiate it from very small variance
-        self.q_f_scale = nn.Parameter(
-            torch.randn(d_data), requires_grad=True
-            )
+        )
 
         if phi_net == 'masked':
             self.q_phi_x = Masked_q_phi_x(
                 d_in, d_hid, d_in, d_emb,
                 n_layers, activation, norm, p,
-                )
+            )
         else:
             self.q_phi_x = Vanilla_q_phi_x(
                 d_in, d_hid, d_in,
                 n_layers, activation, norm, p,
                 baseline=3
-                )
+            )
 
     def predict(self, x, numpy=True):
         # =============================================================================
@@ -324,18 +312,19 @@ class Model(nn.Module):
             loglikelihood = qp_f_x.log_prob(y).mean(0)
 
         elif self.likelihood == 'Bernoulli':
-
             q_f = Normal(
-                self.q_f_loc[i],
-                nn.Softplus()(self.q_f_scale[i]) + 1e-5
+                loc=qp_f_x_loc, 
+                scale=qp_f_x_scale
                 )
-            loglikelihood = Bernoulli(
-                logits=q_f.rsample() * nn.Softplus()(self.gamma)
-                ).log_prob(y)
-            loglikelihood -= torch.distributions.kl_divergence(
+            logits = q_f.sample()
+            loglikelihood = -torch.distributions.kl_divergence(
                 q_f, qp_f_x
                 )
-            logits = q_f.sample().detach()
+            
+            loglikelihood += Bernoulli(
+                logits=q_f.rsample().squeeze(-1)
+                ).log_prob(y)
+
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
         #         term.

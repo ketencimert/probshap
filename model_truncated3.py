@@ -19,13 +19,12 @@ from tqdm import tqdm
 from utils import inverse_transform, to_np, sample_covariance
 from modules import create_masked_layers, create_feedforward_layers
 
-# from truncated_normal import TruncatedNormal
 import torchrl
 
 
 class P_f_(nn.Module):
     def __init__(self, d_in, d_hid, n_layers, activation, norm, p):
-        super().__init__()
+        super(P_f_, self).__init__()
         # =============================================================================
         #         This is predictive net where you sum latent Shapley values to come up
         #         to y or logits, l
@@ -51,7 +50,7 @@ class Masked_q_phi_x(nn.Module):
     def __init__(
             self, d_in, d_hid, d_out, d_emb, n_layers, activation, norm, p,
     ):
-        super().__init__()
+        super(Masked_q_phi_x, self).__init__()
         # =============================================================================
         #         Masked net as described in the paper.
         # =============================================================================
@@ -136,7 +135,7 @@ class Vanilla_q_phi_x(nn.Module):
             self, d_in, d_hid, d_out, n_layers, activation, norm, p,
             baseline
     ):
-        super().__init__()
+        super(Vanilla_q_phi_x, self).__init__()
         # =============================================================================
         #         Standard masked neural network.
         # =============================================================================
@@ -176,7 +175,7 @@ class Model(nn.Module):
             d_data, n_layers, activation, norm, p, beta,
             likelihood, phi_net, cont
     ):
-        super().__init__()
+        super(Model, self).__init__()
         
         #control variatite
         self.cont = cont
@@ -299,23 +298,12 @@ class Model(nn.Module):
         # =============================================================================
         # 1. Generate missing values vector m \sim p(s), where m is 0
         # model won't see corresponding x values.
-        original_size = x.size(0)
         m = self.missingness_indicator(x)
-        x = torch.cat([x, x],0)
-        m = torch.cat([m, torch.ones_like(m)],0)
         # 2. Compute distributions sufficient statistics.
         q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
         qp_f_x_scale, py_x_loc \
             = self.compute_parameters(x, m)
 
-        q_phi_x_loc, q_phi_x_loc_ = q_phi_x_loc.split(original_size, 0)
-        q_phi_x_scale, q_phi_x_scale_ = q_phi_x_scale.split(original_size, 0)
-        qp_f_x_loc, qp_f_x_loc_ = qp_f_x_loc.split(original_size, 0)
-        qp_f_x_scale, qp_f_x_scale_ = qp_f_x_scale.split(original_size, 0)
-        py_x_loc, py_x_loc_ = py_x_loc.split(original_size, 0)
-
-        x = x[:original_size]
-        m = m[:original_size]
         # 3. Compute an approximation to p(\phi | x):
         p_phi_x_loc1, p_phi_x_loc2, feature_idx \
             = self.p_phi_x_parameters(x, m)
@@ -335,15 +323,15 @@ class Model(nn.Module):
             #     )
             #tanh_loc makes it more stable. so use this implementation instead.
             pf_xy = torchrl.modules.TruncatedNormal(
-                loc=qp_f_x_loc_.unsqueeze(-1), 
-                scale=qp_f_x_scale_.unsqueeze(-1), 
+                loc=qp_f_x_loc.unsqueeze(-1), 
+                scale=qp_f_x_scale.unsqueeze(-1), 
                 low=low.unsqueeze(-1),
                 high=high.unsqueeze(-1),
                 tanh_loc=True
                 )
 
-            pf_xy_loc = pf_xy.mean.squeeze(-1).detach()
-            pf_xy_variance = pf_xy.variance.squeeze(-1).clamp(min=1e-5).detach()
+            pf_xy_loc = pf_xy.mean.squeeze(-1)
+            pf_xy_var = pf_xy.variance.squeeze(-1).clamp(min=1e-5)
 
             logits = pf_xy.sample().detach()
 
@@ -352,13 +340,13 @@ class Model(nn.Module):
                 2 * np.pi * qp_f_x_scale.pow(2) + 1e-5
                 )
             loglikelihood -= (
-                pf_xy_variance + (pf_xy_loc - qp_f_x_loc).pow(2)
+               pf_xy_var + (pf_xy_loc - qp_f_x_loc).pow(2)
                 ) / (2 * qp_f_x_scale.pow(2) + 1e-5)
             loglikelihood += Bernoulli(
-                logits=logits.squeeze(-1) * nn.Softplus()(self.gamma)
+                logits=pf_xy.rsample().squeeze(-1)
                 ).log_prob(y)
             # loglikelihood += pf_xy.entropy().mean(0)
-            # loglikelihood += pf_xy.entropy()
+            loglikelihood += pf_xy.entropy()
         # =============================================================================
         #         This is where we compute an unbiased estimate to the kl-divergence
         #         term.
