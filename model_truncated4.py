@@ -236,14 +236,11 @@ class Model(nn.Module):
 
         # 3. If Bernoulli feed to sigmoid function [0,1]
         elif self.likelihood == 'Bernoulli':
-            py_x_loc  = 1 - Normal(
-                qp_f_x_loc,
-                torch.pow(
-                    qp_f_x_scale.pow(2)\
-                        + nn.Softplus()(self.p_f_.scale).pow(2),
-                        0.5
-                        )
-                    ).cdf(torch.zeros_like(qp_f_x_loc))
+            py_x_loc = nn.Sigmoid()(
+                qp_f_x_loc * (
+                        1 + np.pi * qp_f_x_scale.pow(2) / 8
+                ).pow(-0.5)
+            )
 
         return q_phi_x_loc, q_phi_x_scale, qp_f_x_loc, \
                qp_f_x_scale, py_x_loc

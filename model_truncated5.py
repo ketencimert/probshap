@@ -348,9 +348,9 @@ class Model(nn.Module):
                 ) / (2 * qp_f_x_scale.pow(2) + 1e-5)
             loglikelihood += Bernoulli(
                 probs=1 - Normal(
-                    logits, 
+                    logits.squeeze(-1), 
                     nn.Softplus()(self.p_f_.scale)
-                    ).cdf(torch.zeros_like(logits))
+                    ).cdf(torch.zeros_like(logits).squeeze(-1))
                 ).log_prob(y)
             # loglikelihood += pf_xy.entropy().mean(0)
             loglikelihood += pf_xy.entropy()
